@@ -1,6 +1,24 @@
 "use client";
 
 import React from "react";
+import { loginWithWepin, logoutFromWepin } from "../lib/wepin";
+
+export default function WepinLoginButton() {
+  return (
+    <div className="flex flex-col">
+      <button onClick={loginWithWepin} className="cursor-pointer">
+        Wepin Login
+      </button>
+      <button onClick={logoutFromWepin} className="cursor-pointer">
+        Wepin Logout
+      </button>
+    </div>
+  );
+}
+
+/*"use client";
+
+import React from "react";
 
 export default function WepinLoginButton() {
   const handleLogin = async () => {
@@ -49,4 +67,4 @@ export default function WepinLoginButton() {
       </button>
     </div>
   );
-}
+}*/
