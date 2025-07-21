@@ -24,3 +24,7 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.HeaderStyle {
+  @apply flex-1  font-bold  flex items-center justify-center;
+}

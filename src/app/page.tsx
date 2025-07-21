@@ -1,11 +1,5 @@
-// pages/index.js
-
+import Headertop from "../components/HeaderTop";
 
 export default function Home() {
-  return (
-    <div>
-      <h1>Wepin 지갑 로그인</h1>
-     
-    </div>
-  );
+  return <Headertop />;
 }

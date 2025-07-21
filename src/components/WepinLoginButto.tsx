@@ -1,35 +1,52 @@
-'use client';
+"use client";
 
-import React from 'react';
+import React from "react";
 
 export default function WepinLoginButton() {
   const handleLogin = async () => {
-    const { WepinLogin }: any = await import('@wepin/login-js');
+    const { WepinSDK } = await import("@wepin/sdk-js");
 
-    const wepinLogin = new WepinLogin({
-      appId: process.env.NEXT_PUBLIC_WEPIN_APP_ID || '',
-      appKey: process.env.NEXT_PUBLIC_WEPIN_APP_KEY || '',
+    const wepinSDK = new WepinSDK({
+      appId: process.env.NEXT_PUBLIC_WEPIN_APP_ID || "",
+      appKey: process.env.NEXT_PUBLIC_WEPIN_APP_KEY || "",
     });
 
-    await wepinLogin.init({ defaultLanguage: 'ko' });
+    await wepinSDK.init({ defaultLanguage: "ko" });
 
-    const result = await wepinLogin.loginWithOauthProvider({
-      provider: 'google',
-    });
+    // loginWithUI 호출
+    const result = await wepinSDK.loginWithUI();
 
-    if ('token' in result) {
-      const { idToken, refreshToken } = result.token;
-
-      const user = await wepinLogin.loginWepin({
-        provider: result.provider,
-        token: { idToken, refreshToken },
-      });
-
-      console.log(user);
+    if ("token" in result) {
+      console.log("로그인 성공:", result);
+      // 추가 처리
     } else {
-      console.warn('Login failed:', result);
+      console.warn("로그인 실패:", result);
     }
   };
 
-  return <button onClick={handleLogin}>Wepin Login</button>;
+  const handleLogout = async () => {
+    const { WepinSDK } = await import("@wepin/sdk-js");
+
+    const wepinSDK = new WepinSDK({
+      appId: process.env.NEXT_PUBLIC_WEPIN_APP_ID || "",
+      appKey: process.env.NEXT_PUBLIC_WEPIN_APP_KEY || "",
+    });
+
+    await wepinSDK.init({ defaultLanguage: "ko" });
+
+    await wepinSDK.logout();
+
+    console.log("User logged out");
+  };
+
+  return (
+    <div className="flex flex-col">
+      <button onClick={handleLogin} className="cursor-pointer">
+        Wepin Login
+      </button>
+      <button onClick={handleLogout} className="cursor-pointer">
+        Wepin Logout
+      </button>
+    </div>
+  );
 }
