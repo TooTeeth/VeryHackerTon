@@ -8,20 +8,25 @@ const wallets: { name: string; src: string; type: "metamask" | "wepin" }[] = [
   { name: "Wepin", src: "/WepinLogo.png", type: "wepin" },
 ];
 
-export default function WalletModal({ onClose, onConnect }: { onClose: () => void; onConnect: (walletType: "metamask" | "wepin") => void }) {
+export default function WalletModal({ onClose, onConnect }: { onClose: () => void; onConnect: (walletType: "metamask" | "wepin", address?: string) => void }) {
   const handleWalletClick = async (type: "metamask" | "wepin") => {
-    console.log("onConnect prop:", onConnect);
     if (type === "metamask") {
-      console.log("🦊 Metamask 연결 시도 (직접 구현 필요)");
-      // TODO: Metamask 연결 로직
+      // 메타마스크 로그인은 추후 구현
     } else if (type === "wepin") {
-      await loginWithWepin();
+      try {
+        const result = await loginWithWepin();
+        if (result?.walletId) {
+          onConnect(type, result.walletId); // walletId 넘겨줌
+        } else {
+          console.error("Wepin 로그인 실패 또는 walletId 없음");
+          onConnect(type); // 실패 시 주소 없이 호출
+        }
+      } catch (error) {
+        console.error("Wepin 로그인 에러", error);
+        onConnect(type);
+      }
     }
-
-    onConnect(type);
-    console.log("모달 닫기 호출 전");
     onClose();
-    console.log("모달 닫기 호출 후");
   };
 
   return (
