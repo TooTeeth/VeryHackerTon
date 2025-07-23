@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { FaTimes } from "react-icons/fa";
-import { logoutFromWepin } from "../lib/wepin";
+import { logoutFromWepin, openWepinWidget } from "../lib/wepin";
 
 import { IoWallet } from "react-icons/io5";
 import { FcCancel } from "react-icons/fc";
@@ -24,6 +24,12 @@ export default function ConnectedWalletModal({ onClose, wallet, onDisconnect }: 
     onClose(); // 모달 닫기
   };
 
+  const handlewindow = async () => {
+    if (wallet.type === "wepin") {
+      await openWepinWidget(); // Wepin 로그아웃
+    }
+  };
+
   return (
     <div style={overlayStyle}>
       <div style={modalStyle}>
@@ -42,6 +48,7 @@ export default function ConnectedWalletModal({ onClose, wallet, onDisconnect }: 
           <div
             className="w-60 h-10 border border-gray-200 rounded-lg p-3 flex items-center justify-center
               cursor-pointer hover:bg-gray-200 hover:shadow-lg transition-shadow gap-2 text-sm font-semibold"
+            onClick={handlewindow}
           >
             <IoWallet size={20} />
             <span className="">
