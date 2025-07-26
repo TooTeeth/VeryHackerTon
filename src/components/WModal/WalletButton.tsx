@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { FaWallet } from "react-icons/fa";
 import Image from "next/image";
-import WalletModal from "./WalletModal";
+
 import ConnectedWalletModal from "./ConnectedWalletModal";
+import WalletModal from "./WalletModal";
 
 export default function WalletButton() {
   // type과 address 같이 저장
@@ -22,7 +23,7 @@ export default function WalletButton() {
   };
 
   const getWalletIcon = () => {
-    if (!connectedWallet) return <FaWallet size={28} />;
+    if (!connectedWallet) return <FaWallet className="text-gray-200" size={28} />;
 
     if (connectedWallet.type === "metamask") {
       return <Image src="/MetamaskLogo.png" alt="Metamask" width={28} height={28} />;
@@ -44,9 +45,9 @@ export default function WalletButton() {
 
   return (
     <>
-      <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-full cursor-pointer hover:bg-gray-200">
+      <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2  px-3 py-1 rounded-full cursor-pointer  hover:bg-gray-200">
         {getWalletIcon()}
-        {connectedWallet && <span className="text-sm font-semibold text-gray-700">{getConnectedText()}</span>}
+        {connectedWallet && <span className=" font-semibold text-gray-100 dark:text-white">{getConnectedText()}</span>}
       </button>
 
       {isModalOpen && (connectedWallet ? <ConnectedWalletModal onClose={() => setIsModalOpen(false)} wallet={connectedWallet} onDisconnect={() => setConnectedWallet(null)} /> : <WalletModal onClose={() => setIsModalOpen(false)} onConnect={handleWalletConnect} />)}

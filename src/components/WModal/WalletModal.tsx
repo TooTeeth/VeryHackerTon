@@ -1,7 +1,9 @@
 "use client";
 
 import { FaTimes } from "react-icons/fa";
-import { loginWithWepin } from "../lib/wepin";
+
+import Image from "next/image";
+import { loginWithWepin } from "../../lib/wepin";
 
 const wallets: { name: string; src: string; type: "metamask" | "wepin" }[] = [
   { name: "Metamask", src: "/MetamaskLogo.png", type: "metamask" },
@@ -32,11 +34,11 @@ export default function WalletModal({ onClose, onConnect }: { onClose: () => voi
   return (
     <div style={overlayStyle}>
       <div style={modalStyle}>
-        <button style={closeBtnStyle} onClick={onClose}>
+        <button style={closeBtnStyle} onClick={onClose} className="dark:text-black">
           <FaTimes />
         </button>
-        <div className="text-lg mb-5">Connect Wallet</div>
-        <div className="text-sm text-gray-400">Recommend</div>
+        <div className="text-lg mb-5 dark:text-black">Connect Wallet</div>
+        <div className="text-sm mb-3 text-gray-400">Recommend</div>
         <div className="flex flex-wrap justify-center gap-4">
           {wallets.map((wallet) => (
             <button
@@ -46,7 +48,7 @@ export default function WalletModal({ onClose, onConnect }: { onClose: () => voi
               type="button"
               onClick={() => handleWalletClick(wallet.type)}
             >
-              <img src={wallet.src} alt={wallet.name} className="w-12 h-12 mb-2" />
+              <Image src={wallet.src} alt={wallet.name} width={200} height={50} />
               <span className="text-sm font-medium truncate">{wallet.name}</span>
             </button>
           ))}
@@ -85,10 +87,4 @@ const closeBtnStyle: React.CSSProperties = {
   background: "none",
   border: "none",
   cursor: "pointer",
-};
-
-const iconContainerStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-around",
-  marginTop: "1rem",
 };

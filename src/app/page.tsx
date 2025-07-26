@@ -1,5 +1,9 @@
-import Headertop from "../components/HeaderTop";
+import MainHero from "../components/main/MainHero";
 
 export default function Home() {
-  return <Headertop />;
+  return (
+    <div>
+      <MainHero />
+    </div>
+  );
 }

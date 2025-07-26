@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { loginWithWepin, logoutFromWepin } from "../lib/wepin";
+import { loginWithWepin, logoutFromWepin } from "../../lib/wepin";
 
 export default function WepinLoginButton() {
   return (

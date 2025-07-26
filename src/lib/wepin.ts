@@ -1,6 +1,7 @@
 // src/lib/wepin.ts
 
-let cachedWepinSDK: any = null;
+import type { WepinSDK } from "@wepin/sdk-js";
+let cachedWepinSDK: WepinSDK | null = null;
 
 // SDK 초기화
 export const initWepinSDK = async () => {
@@ -122,19 +123,28 @@ export const sendWepinTx = async ({
 };
 
 // 로그인 세션 확인
-export const getWepinLoginSession = async (provToken?: any) => {
-  const sdk = await initWepinSDK();
-  if (!sdk) return null;
 
-  return await sdk.getLoginSession(provToken);
+type ProvToken = {
+  firebaseToken: {
+    provider: string;
+    idToken: string;
+    refreshToken: string;
+  };
+  wepinToken: {
+    accessToken: string;
+    refreshToken: string;
+  };
 };
 
-// 회원가입
-export const registerWepin = async () => {
+export const getWepinLoginSession = async (provToken?: ProvToken) => {
   const sdk = await initWepinSDK();
-  if (!sdk) return null;
+  if (!sdk) {
+    console.warn("❌ SDK is not initialized.");
+    return null;
+  }
 
-  return await sdk.register();
+  const session = await sdk.getLoginSession(provToken);
+  return session;
 };
 
 // 이메일로 사용자 등록

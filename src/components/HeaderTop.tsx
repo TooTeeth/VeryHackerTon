@@ -1,28 +1,47 @@
 import Image from "next/image";
 import Link from "next/link";
-
-import WalletButton from "./WalletButton";
+import WalletButton from "./WModal/WalletButton";
+import ThemeToggle from "./DarkMode/ThemeToggle";
 
 export default function Headertop() {
   return (
-    <div className="flex ">
-      <div className="HeaderStyle">
+    <div className="flex items-center border-b border-gray-400 px-4 h-16  fixed top-0 left-0 w-full  z-50">
+      {/* 왼쪽: 로고 + 텍스트 */}
+      <div className="flex items-center">
         <Link href={"/"}>
-          <Image src="/VeryLogo.png" alt="Logo" width={50} height={50} priority />
+          <Image src="/VeryLogo.png" alt="Logo" width={30} height={40} />
         </Link>
-      </div>
-      <div className="HeaderStyle bg-red-200">
-        <Link href={"/play"}>PLAY</Link>
-      </div>
-      <div className="HeaderStyle bg-green-200">
-        <Link href={"/market"}>MARKET</Link>
-      </div>
-      <div className="HeaderStyle bg-blue-200">
-        <Link href={"/swap"}>SWAP</Link>
+        <Link href={"/"}>
+          <div className="font-baloo font-extrabold text-3xl ml-2 mt-4 text-transparent bg-gradient-to-r from-[#f97171] to-[#8a82f6] bg-clip-text">VTDN</div>
+        </Link>{" "}
       </div>
 
-      <div className="HeaderStyle text-4xl bg-gray-200">
+      {/* 가운데: 메뉴 */}
+      <nav className="flex space-x-10 flex-1 justify-start  ml-10 mt-2 text-gray-200 dark:white">
+        <Link href="/play" className="hover:text-red-500 font-semibold">
+          Play
+        </Link>
+        <Link href="/market" className="hover:text-green-500 font-semibold">
+          Market
+        </Link>
+        <Link href="/swap" className="hover:text-blue-500 font-semibold">
+          Swap
+        </Link>
+        <Link href="/earn" className="hover:text-yellow-500 font-semibold">
+          Earn
+        </Link>
+        <Link href="/voting" className="hover:text-purple-500 font-semibold">
+          Voting
+        </Link>
+        <Link href="/more" className="hover:text-skyblue-500 font-semibold">
+          More
+        </Link>
+      </nav>
+
+      {/* 오른쪽: 버튼 및 아이콘 */}
+      <div className="flex items-center space-x-4 flex-1 justify-end mr-5">
         <WalletButton />
+        <ThemeToggle />
       </div>
     </div>
   );

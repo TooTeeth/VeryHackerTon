@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { FaTimes } from "react-icons/fa";
-import { logoutFromWepin, openWepinWidget } from "../lib/wepin";
+import { logoutFromWepin, openWepinWidget } from "../../lib/wepin";
 
 import { IoWallet } from "react-icons/io5";
 import { FcCancel } from "react-icons/fc";
@@ -33,11 +33,11 @@ export default function ConnectedWalletModal({ onClose, wallet, onDisconnect }: 
   return (
     <div style={overlayStyle}>
       <div style={modalStyle}>
-        <button style={closeBtnStyle} onClick={onClose}>
+        <button style={closeBtnStyle} onClick={onClose} className="dark:text-black">
           <FaTimes />
         </button>
 
-        <div className="flex flex-col items-center gap-4">
+        <div className="flex flex-col items-center gap-4 dark:text-black">
           {/* 상단: 로고 + 이름 */}
           <div className="flex  items-center">
             <Image src={logo} alt={name} width={40} height={40} />
