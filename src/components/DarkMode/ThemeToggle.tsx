@@ -32,7 +32,7 @@ export default function ThemeToggle() {
   };
 
   return (
-    <button className="text-white" onClick={toggleTheme}>
+    <button className="text-white " onClick={toggleTheme}>
       {theme === "dark" ? <BsFillSunFill size={25} /> : <BsFillMoonStarsFill size={25} />}
     </button>
   );

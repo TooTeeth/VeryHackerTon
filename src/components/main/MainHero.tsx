@@ -37,6 +37,56 @@ export default function MainHero() {
             justifyContent: "center",
             alignItems: "center",
             color: "white",
+            fontSize: "2.5rem",
+            fontWeight: "bold",
+            textShadow: ` 2px 2px 4px rgba(0,0,0,0.9),0 0 5px rgba(255,255,255,0.3),1px 1px 1px rgba(0,0,0,0.9)`,
+          }}
+        >
+          <div>Envision Your Destiny</div>
+          <div>Reap Your Very</div>
+          <div>Mint Your NFT</div>
+        </div>
+
+        <div
+          style={{
+            position: "absolute",
+            bottom: "40px", // 바닥에서 살짝 띄움
+            left: "50%",
+            transform: "translateX(-50%)",
+            color: "white",
+            fontSize: "2rem",
+            textShadow: "1px 1px 3px rgba(0, 0, 0, 0.8)",
+            zIndex: 1,
+            borderRadius: "12px",
+          }}
+        >
+          <CgScrollV />
+        </div>
+      </section>
+
+      <section
+        style={{
+          position: "relative",
+          height: "110vh",
+          scrollSnapAlign: "start",
+          backgroundImage: "url('/Mainpage/MainHero.png')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+        }}
+      >
+        {/* 이미지 위 텍스트 */}
+        <div
+          className="flex flex-col"
+          style={{
+            position: "relative",
+            zIndex: 1,
+            height: "100%",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            color: "white",
             fontSize: "2rem",
             fontWeight: "bold",
             textShadow: ` 2px 2px 4px rgba(0,0,0,0.9),0 0 5px rgba(255,255,255,0.3),1px 1px 1px rgba(0,0,0,0.9)`,
@@ -104,13 +154,13 @@ export default function MainHero() {
                 borderRadius: "8px",
                 zIndex: 6,
                 fontSize: "2rem",
-                fontWeight: 700,
+
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
               }}
             >
-              <div style={{ fontSize: "3.5vw", fontWeight: "bold", color: "#fff" }}>DEFINE YOUR LEGACY</div>
+              <div style={{ fontSize: "3.5vw", color: "#fff" }}>DEFINE YOUR LEGACY</div>
               <div style={{ fontSize: "1.5vw", color: "#ccc", marginTop: "8px" }}>THE ERA YOU CHOOSE SHAPES YOUR PATH</div>
             </div>
             <button
