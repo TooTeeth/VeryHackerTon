@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import WalletButton from "./WModal/WalletButton";
 import ThemeToggle from "./DarkMode/ThemeToggle";
+import { baloo } from "../styles/font";
 
 export default function Headertop() {
   return (
@@ -12,8 +13,8 @@ export default function Headertop() {
           <Image src="/VeryLogo.png" alt="Logo" width={30} height={40} />
         </Link>
         <Link href={"/"}>
-          <div className="font-baloo font-extrabold text-3xl ml-2 mt-4 text-transparent bg-gradient-to-r from-[#f97171] to-[#8a82f6] bg-clip-text">VTDN</div>
-        </Link>{" "}
+          <div className={`${baloo.className} font-extrabold text-3xl ml-2 mt-4 text-transparent bg-gradient-to-r from-[#f97171] to-[#8a82f6] bg-clip-text`}>VTDN</div>
+        </Link>
       </div>
 
       {/* 가운데: 메뉴 */}

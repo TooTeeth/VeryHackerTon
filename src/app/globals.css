@@ -33,10 +33,81 @@ body {
   @apply bg-white text-black dark:bg-darkmode dark:text-white;
 }
 
+/*HeaderTop Components Style*/
 .HeaderStyleLeft {
   @apply flex-1  font-bold  flex items-center justify-start cursor-pointer;
 }
 
 .HeaderStyle {
   @apply flex-1  font-bold  flex items-center justify-center cursor-pointer;
+}
+
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/*Mainpage Silder*/
+.swiper-slide-active .slide-image {
+  filter: none !important;
+  transform: scale(1.2) !important;
+  object-fit: contain;
+}
+
+.swiper-slide-prev .slide-image,
+.swiper-slide-next .slide-image {
+  filter: grayscale(50%) blur(2px) !important;
+  transform: scale(0.92) !important;
+}
+
+.swiper-slide:not(.swiper-slide-active):not(.swiper-slide-prev):not(.swiper-slide-next) .slide-image {
+  filter: grayscale(100%) blur(3px) !important;
+  transform: scale(0.88) !important;
+}
+
+.swiper-button-next,
+.swiper-button-prev {
+  width: 40px !important;
+  height: 48px !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  text-indent: -9999px !important;
+  z-index: 20 !important;
+  opacity: 1 !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  transition: transform 0.3s ease !important;
+}
+
+.swiper-button-next {
+  background-image: url("/Mainpage/arrow.png") !important;
+  right: calc(50% - 265px) !important;
+  left: auto !important;
+}
+
+.swiper-button-prev {
+  background-image: url("/Mainpage/arrow-left.png") !important;
+  left: calc(50% - 265px) !important;
+  right: auto !important;
+  transform: translateY(-50%) !important;
+  transition: transform 0.3s ease !important;
+}
+
+.swiper-button-next:hover {
+  transform: translateY(-50%) scale(1.2) !important;
+}
+
+.swiper-button-next:hover {
+  background-image: url("/Mainpage/arrow-right-hover.png") !important;
+  transform: translateY(-50%) scale(1.2) !important;
+}
+
+.swiper-button-prev:hover {
+  background-image: url("/Mainpage/arrow-left-hover.png") !important;
+  transform: translateY(-50%) scale(1.2) !important;
 }

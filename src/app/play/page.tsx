@@ -1,15 +1,21 @@
 import Image from "next/image";
-import PoolTable from "../../components/PTable/PoolTable";
 
 export default function Play() {
   return (
-    <div>
-      <div className=" border-b-2">
-        <main className="font-baloo text-5xl font-bold mt-16 pt-10 flex justify-center items-center  ">Main Stream</main>
-        <Image src={"/Playpage/WorldTree.png"} alt="WorldTree" width={400} height={0} className=" w-[900px] h-[500px]  rounded-2xl border-2 block mx-auto p-4" />
-      </div>
-      <div className="pt-4 bg-gray-50">
-        <PoolTable />
+    <div className="group relative w-[360px] h-[360px] perspective mt-32">
+      {/* 카드 */}
+      <div className="relative w-full h-full rounded-xl overflow-hidden transition-transform duration-500 transform group-hover:rotate-x-3 group-hover:rotate-y-3 group-hover:scale-105">
+        <Image
+          src="/Playpage/300.png"
+          alt="Aion2"
+          fill
+          style={{ objectFit: "cover" }}
+          priority // 중요 이미지라면 사용
+          sizes="360px"
+        />
+
+        {/* 오버레이 (예: 게임홈 바로가기) */}
+        <div className="absolute bottom-4 left-4 bg-black/60 text-white px-3 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300">게임홈 바로가기</div>
       </div>
     </div>
   );

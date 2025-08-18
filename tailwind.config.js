@@ -3,8 +3,14 @@ module.exports = {
   content: ["./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
-      fontFamily: {
-        baloo: ['"Baloo Bhaina 2"', "cursive"],
+      keyframes: {
+        float: {
+          "0%, 100%": { transform: "translateX(-50%) translateY(0)" },
+          "50%": { transform: "translateX(-50%) translateY(-10px)" },
+        },
+      },
+      animation: {
+        float: "float 2s ease-in-out infinite",
       },
     },
   },
