@@ -73,7 +73,7 @@ export default function CarouselComponent() {
             centeredSlides: false,
           },
           862: {
-            slidesPerView: 2,
+            slidesPerView: 1,
             centeredSlides: false,
           },
           1024: {

@@ -3,6 +3,7 @@ import Link from "next/link";
 import WalletButton from "./WModal/WalletButton";
 import ThemeToggle from "./DarkMode/ThemeToggle";
 import { baloo } from "../styles/font";
+import MetaMaskConnect from "./MetaMaskConnect";
 
 export default function Headertop() {
   return (
@@ -10,10 +11,10 @@ export default function Headertop() {
       {/* 왼쪽: 로고 + 텍스트 */}
       <div className="flex items-center">
         <Link href={"/"}>
-          <Image src="/VeryLogo.png" alt="Logo" width={30} height={40} />
+          <Image src="/VTDNLogo.png" alt="Logo" width={60} height={60} />
         </Link>
         <Link href={"/"}>
-          <div className={`${baloo.className} font-extrabold text-3xl ml-2 mt-4 text-transparent bg-gradient-to-r from-[#f97171] to-[#8a82f6] bg-clip-text`}>VTDN</div>
+          <div className={`${baloo.className} font-extrabold text-3xl mt-4 text-transparent bg-gradient-to-r from-[#f97171] to-[#8a82f6] bg-clip-text`}>VTDN</div>
         </Link>
       </div>
 
@@ -43,6 +44,7 @@ export default function Headertop() {
       <div className="flex items-center space-x-4 flex-1 justify-end mr-5">
         <WalletButton />
         <ThemeToggle />
+        <MetaMaskConnect />
       </div>
     </div>
   );
