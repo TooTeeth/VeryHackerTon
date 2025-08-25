@@ -15,9 +15,12 @@ export async function createMoralisStream() {
       advancedOptions: {
         includeContractLogs: true,
       },
+      demoAddresses: ["0x54507082a8BD3f4aef9a69Ae58DeAD63cAB97244"],
     }),
   });
 
   const data = await res.json();
   console.log("📡 Moralis stream created:", data);
 }
+
+createMoralisStream();
