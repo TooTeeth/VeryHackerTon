@@ -5,7 +5,7 @@ const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_KE
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { Players, Creator, Title, Era, Genre, Plan } = body;
+  const { Players, Creator, Title, Era, Genre, Plan, publicImageUrl } = body;
 
   const { data, error } = await supabase.from("Stream").insert([
     {
@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
       Era,
       Plan,
       Creator,
+      Image: publicImageUrl,
     },
   ]);
 

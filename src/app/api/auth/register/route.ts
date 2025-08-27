@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ user: existingUser });
     }
 
-    // 새 유저 등록
+    // Register Users
     const { data: newUser, error: insertError } = await supabase
       .from("Users")
       .insert([{ wallet_address: walletAddress }])

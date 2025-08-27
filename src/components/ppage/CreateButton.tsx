@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ethers } from "ethers";
 import NewStoryCreateAbi from "../../contracts/abi/NewStoryCreate.json";
+import { toast } from "react-toastify";
 
 const CONTRACT_ADDRESS = "0x54507082a8BD3f4aef9a69Ae58DeAD63cAB97244";
 
@@ -23,7 +24,7 @@ export default function CreateButton({ data, onCreate }: Props) {
 
   const switchToVeryChain = async () => {
     if (!window.ethereum) {
-      alert("MetaMask가 감지되지 않았습니다.");
+      toast.error("MetaMask was not detected.");
       return false;
     }
     try {
@@ -33,16 +34,16 @@ export default function CreateButton({ data, onCreate }: Props) {
       });
       return true;
     } catch {
-      alert("VERY 메인넷으로 전환해 주세요.");
+      toast.error("Please switch to the VERY mainnet.");
       return false;
     }
   };
 
   const sendVery = async () => {
-    if (loading) return; // 중복 클릭 방지
+    if (loading) return;
 
     if (!window.ethereum) {
-      alert("지갑이 연결되어 있지 않습니다.");
+      toast.error("Wallet is not connected.");
       return;
     }
 
@@ -59,7 +60,7 @@ export default function CreateButton({ data, onCreate }: Props) {
       const receipt = await tx.wait();
 
       if (receipt.status === 1) {
-        alert("1 VERY 전송 완료!");
+        toast.success("Transaction confirmation!");
 
         const response = await fetch("/api/stream/create", {
           method: "POST",
@@ -76,17 +77,17 @@ export default function CreateButton({ data, onCreate }: Props) {
         });
 
         if (!response.ok) {
-          throw new Error("게임 생성 실패");
+          throw new Error("Failed to create.");
         }
 
-        alert("게임 생성 완료!");
+        toast.success("Create complete.");
         onCreate(data);
       } else {
-        alert("트랜잭션 실패");
+        toast.error("Transaction failed");
       }
     } catch (err) {
       console.error(err);
-      alert("전송 실패 또는 게임 생성 실패");
+      toast.error("Failed to send or create game");
     } finally {
       setLoading(false);
     }

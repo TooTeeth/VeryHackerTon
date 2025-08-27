@@ -8,7 +8,7 @@ export default function PlaysecionSection() {
           Main Stream
           <span className="block h-0.5 mt-1 bg-gradient-to-r from-pink-500  to-purple-500 w-full"></span>
         </h2>
-        <p className="mt-2">Play a variety of stories or create a new one.</p>
+        <p className="mt-2">Play a variety of stream or create a new one.</p>
       </div>
       <div className="flex justify-center items-center">
         <GameList />

@@ -1,9 +1,12 @@
-import PlayfirstSection from "../../components/ppage/PlayfirstSecion";
-import PlaysecionSection from "../../components/ppage/PlaysecondSection";
+import { ToastContainer } from "react-toastify";
 
-export default function Play() {
+import PlaysecionSection from "../../components/ppage/PlaysecondSection";
+import PlayfirstSection from "../../components/ppage/Playfirstsection";
+
+export default function Playpage() {
   return (
     <div>
+      <ToastContainer />
       <PlaysecionSection />
       <PlayfirstSection />
     </div>
