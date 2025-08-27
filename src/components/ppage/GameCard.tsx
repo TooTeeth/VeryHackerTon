@@ -11,7 +11,7 @@ import { FaFileUpload } from "react-icons/fa";
 type Game = {
   title: string;
   image: string;
-  players: string;
+  players: string | React.ReactNode;
   genre: string;
   Era: string;
   Plan: string;
@@ -159,14 +159,15 @@ export default function GameCard({ game, createMode = false, variant = "default"
       ) : (
         // Main Stream Card
         <>
-          <Image src={game!.image} alt={game!.title} width={324} height={324} className="object-cover h-70 transition-transform duration-300 hover:scale-105 cursor-pointer " />
-          <div className="p-4 space-y-2">
+          <Image src={game!.image} alt={game!.title} width={324} height={324} className="object-cover h-70 transition-transform duration-300 hover:scale-105 cursor-pointer  " />
+          <div className="p-4 space-y-2 ">
             <h3 className="text-xl font-bold">{game!.title}</h3>
-            <div className="text-sm text-gray-400 space-y-1">
-              <p>👥 Players: {game!.players}</p>
-              <p>👥 Era: {game!.Era}</p>
-              <p>🎮 Genre: {game!.genre}</p>
-              <p>🗓 Plan: {game!.Plan}</p>
+            <div className="text-sm text-gray-500 space-y-1">
+              <p>Title: {game!.title}</p>
+              <p>Players: {game!.players}</p>
+              <p>Era: {game!.Era}</p>
+              <p>Genre: {game!.genre}</p>
+              <p>Plan: {game!.Plan}</p>
             </div>
             {showPlayButton !== false && (
               <div className="pt-2">

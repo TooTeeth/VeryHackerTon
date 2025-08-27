@@ -4,6 +4,8 @@ import { FaTimes } from "react-icons/fa";
 
 import Image from "next/image";
 import { loginWithWepin } from "../../lib/wepin";
+import { ethers } from "ethers";
+import { useState } from "react";
 
 const wallets: { name: string; src: string; type: "metamask" | "wepin" }[] = [
   { name: "Metamask", src: "/MetamaskLogo.png", type: "metamask" },
@@ -11,9 +13,33 @@ const wallets: { name: string; src: string; type: "metamask" | "wepin" }[] = [
 ];
 
 export default function WalletModal({ onClose, onConnect }: { onClose: () => void; onConnect: (walletType: "metamask" | "wepin", address?: string) => void }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const handleWalletClick = async (type: "metamask" | "wepin") => {
+    setError(null);
+
     if (type === "metamask") {
-      // 메타마스크 로그인은 추후 구현
+      if (!window.ethereum) {
+        setError("MetaMask를 설치해주세요!");
+        return;
+      }
+      setLoading(true);
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const accounts = await provider.send("eth_requestAccounts", []);
+        if (accounts.length > 0) {
+          onConnect("metamask", accounts[0]);
+          onClose();
+        } else {
+          setError("지갑을 찾을 수 없습니다.");
+        }
+      } catch (e) {
+        setError("메타마스크 연결 실패");
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
     } else if (type === "wepin") {
       try {
         const result = await loginWithWepin();
@@ -47,6 +73,7 @@ export default function WalletModal({ onClose, onConnect }: { onClose: () => voi
               cursor-pointer hover:shadow-md transition-shadow"
               type="button"
               onClick={() => handleWalletClick(wallet.type)}
+              disabled={loading}
             >
               <Image src={wallet.src} alt={wallet.name} width={200} height={50} />
               <span className="text-sm font-medium truncate">{wallet.name}</span>

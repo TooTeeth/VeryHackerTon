@@ -1,32 +1,97 @@
-import React from "react";
-import { FaWindows, FaApple, FaAndroid, FaSteam } from "react-icons/fa";
-import { SiNintendoswitch } from "react-icons/si";
+import React, { useState } from "react";
+import { IoPersonSharp } from "react-icons/io5";
+import { FaUnlockKeyhole } from "react-icons/fa6";
+import { BiBookBookmark } from "react-icons/bi";
+import { MdOutlineLocalLibrary } from "react-icons/md";
 
-type Platform = string | null;
-
-type PlatformFilterProps = {
-  selectedPlatform: Platform;
-  onSelectPlatform: (platform: Platform) => void;
+type Filters = {
+  Era?: string;
+  Genre?: string;
+  Players?: string;
+  Free?: string;
 };
 
-const platforms: { name: Platform; label: string; icon?: React.ReactNode }[] = [
-  { name: null, label: "ALL" },
-  { name: "Windows", label: "Windows", icon: <FaWindows /> },
-  { name: "Mac", label: "Mac", icon: <FaApple /> },
-  { name: "Android", label: "Android", icon: <FaAndroid /> },
-  { name: "Switch", label: "Switch", icon: <SiNintendoswitch /> },
-  { name: "Steam", label: "Steam", icon: <FaSteam /> },
+type PlatformFilterProps = {
+  filters: Filters;
+  onFilterChange: (key: keyof Filters, value: string) => void;
+  onReset: () => void;
+};
+
+const platforms: {
+  key: keyof Filters;
+  label: string;
+  icon?: React.ReactNode;
+  subOptions: string[];
+}[] = [
+  {
+    key: "Era",
+    label: "Era",
+    icon: <MdOutlineLocalLibrary />,
+    subOptions: ["MiddleAge", "Cyberpunk", "Modern", "Others"],
+  },
+  {
+    key: "Genre",
+    label: "Genre",
+    icon: <BiBookBookmark />,
+    subOptions: ["Fantasy", "Action", "Romance", "Others"],
+  },
+  {
+    key: "Players",
+    label: "Players",
+    icon: <IoPersonSharp />,
+    subOptions: ["Limited", "Unlimited"],
+  },
+  {
+    key: "Free",
+    label: "Free",
+    icon: <FaUnlockKeyhole />,
+    subOptions: ["Free", "Paid"],
+  },
 ];
 
-export default function PlatformFilter({ selectedPlatform, onSelectPlatform }: PlatformFilterProps) {
+export default function PlatformFilter({ filters, onFilterChange, onReset }: PlatformFilterProps) {
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+
+  const allPlatform = { key: null, label: "ALL", icon: null, subOptions: [] };
+  const allPlatformsWithAll = [allPlatform, ...platforms];
+
   return (
-    <div className="flex justify-center items-center space-x-4 mb-6 text-gray-400 text-2xl relative z-9">
-      {platforms.map(({ name, label, icon }, idx) => (
-        <div key={label} className="flex items-center space-x-2">
-          <button onClick={() => onSelectPlatform(name)} className={`transition hover:text-white ${selectedPlatform === name ? "text-yellow-400" : ""}`} title={label}>
-            {icon || <span className="text-sm font-semibold">{label}</span>}
+    <div className="flex justify-center items-center space-x-4 mb-6 text-gray-500 text-2xl relative z-9">
+      {allPlatformsWithAll.map(({ key, label, icon, subOptions }, idx) => (
+        <div key={label} className="relative flex items-center space-x-2">
+          <button
+            onClick={() => {
+              if (key === null) {
+                onReset();
+                setOpenDropdown(null);
+              } else {
+                setOpenDropdown(openDropdown === key ? null : key);
+              }
+            }}
+            className={`transition hover:text-black ${(key === null && Object.keys(filters).length === 0) || (key !== null && filters[key]) ? "text-transparent bg-gradient-to-r from-[#f97171] to-[#8a82f6] bg-clip-text" : ""}`}
+            title={label}
+          >
+            <div className="flex items-center gap-1">{icon || <span className="text-lg font-bold">{label}</span>}</div>
           </button>
-          {idx < platforms.length - 1 && <span className="text-gray-600">•</span>}
+
+          {subOptions && openDropdown === key && (
+            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-white border rounded shadow-md z-50 min-w-[150px]">
+              {subOptions.map((option) => (
+                <button
+                  key={option}
+                  onClick={() => {
+                    onFilterChange(key as keyof Filters, option);
+                    setOpenDropdown(null);
+                  }}
+                  className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700 text-sm font-bold"
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {idx < allPlatformsWithAll.length - 1 && <span className="text-gray-600">•</span>}
         </div>
       ))}
     </div>

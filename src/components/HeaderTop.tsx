@@ -3,7 +3,6 @@ import Link from "next/link";
 import WalletButton from "./WModal/WalletButton";
 import ThemeToggle from "./DarkMode/ThemeToggle";
 import { baloo } from "../styles/font";
-import MetaMaskConnect from "./MetaMaskConnect";
 
 export default function Headertop() {
   return (
@@ -44,7 +43,6 @@ export default function Headertop() {
       <div className="flex items-center space-x-4 flex-1 justify-end mr-5">
         <WalletButton />
         <ThemeToggle />
-        <MetaMaskConnect />
       </div>
     </div>
   );

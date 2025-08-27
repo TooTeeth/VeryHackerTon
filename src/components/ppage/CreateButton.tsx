@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ethers } from "ethers";
 import NewStoryCreateAbi from "../../contracts/abi/NewStoryCreate.json";
 import { toast } from "react-toastify";
 
 const CONTRACT_ADDRESS = "0x54507082a8BD3f4aef9a69Ae58DeAD63cAB97244";
+const VERY_CHAIN_ID = "0x1205";
 
 type Props = {
   data: {
@@ -20,7 +21,6 @@ type Props = {
 
 export default function CreateButton({ data, onCreate }: Props) {
   const [loading, setLoading] = useState(false);
-  const VERY_CHAIN_ID = "0x1205";
 
   const switchToVeryChain = async () => {
     if (!window.ethereum) {
@@ -39,18 +39,64 @@ export default function CreateButton({ data, onCreate }: Props) {
     }
   };
 
+  useEffect(() => {
+    if (!window.ethereum) return;
+
+    const handleChainChanged = (_chainId: string) => {
+      window.location.reload();
+    };
+
+    const handleAccountsChanged = (accounts: string[]) => {
+      if (accounts.length === 0) {
+        console.log("Please connect to MetaMask.");
+      } else {
+        console.log("Connected account changed:", accounts[0]);
+        // 필요하면 상태 업데이트 가능
+      }
+    };
+
+    window.ethereum.on("chainChanged", handleChainChanged);
+    window.ethereum.on("accountsChanged", handleAccountsChanged);
+
+    return () => {
+      if (!window.ethereum?.removeListener) return;
+
+      window.ethereum.removeListener("chainChanged", handleChainChanged);
+      window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
+    };
+  }, []);
+
   const sendVery = async () => {
     if (loading) return;
 
-    if (!window.ethereum) {
-      toast.error("Wallet is not connected.");
+    const { Title, Players, Era, Genre, Plan } = data;
+    if (!Title || Players <= 0 || !Era || !Genre || Plan <= 0) {
+      toast.error("모든 필드를 올바르게 입력해주세요.");
       return;
+    }
+
+    const ethereum = window.ethereum;
+    if (!ethereum) {
+      toast.error("MetaMask was not detected.");
+      return;
+    }
+
+    const accounts = await ethereum.request({ method: "eth_accounts" });
+
+    if (!Array.isArray(accounts) || accounts.length === 0) {
+      toast.info("Please connect your wallet first.");
+      try {
+        await ethereum.request({ method: "eth_requestAccounts" });
+      } catch (error) {
+        toast.error("User rejected wallet connection.");
+        return;
+      }
     }
 
     const switched = await switchToVeryChain();
     if (!switched) return;
 
-    const provider = new ethers.BrowserProvider(window.ethereum);
+    const provider = new ethers.BrowserProvider(ethereum);
     const signer = await provider.getSigner();
     const contract = new ethers.Contract(CONTRACT_ADDRESS, NewStoryCreateAbi, signer);
 
@@ -76,9 +122,7 @@ export default function CreateButton({ data, onCreate }: Props) {
           }),
         });
 
-        if (!response.ok) {
-          throw new Error("Failed to create.");
-        }
+        if (!response.ok) throw new Error("Failed to create.");
 
         toast.success("Create complete.");
         onCreate(data);
@@ -93,5 +137,5 @@ export default function CreateButton({ data, onCreate }: Props) {
     }
   };
 
-  return <span onClick={sendVery}>{loading ? "Pending..." : "Create "}</span>;
+  return <span onClick={sendVery}>{loading ? "Pending..." : "Create"}</span>;
 }

@@ -20,13 +20,30 @@ export default function ConnectedWalletModal({ onClose, wallet, onDisconnect }: 
     if (wallet.type === "wepin") {
       await logoutFromWepin(); // Wepin 로그아웃
     }
-    onDisconnect(); // 상태 초기화 (WalletButton 등에서 처리)
+
+    // 🔽 MetaMask 권한 제거 시도
+    if (wallet.type === "metamask" && typeof window !== "undefined" && window.ethereum) {
+      try {
+        await window.ethereum.request({
+          method: "wallet_revokePermissions",
+          params: [{ eth_accounts: {} }],
+        });
+        console.log("MetaMask 권한 제거 성공");
+      } catch (err) {
+        console.error("MetaMask 권한 제거 실패", err);
+      }
+    }
+
+    localStorage.setItem("disconnectedManually", "true"); // 수동 연결 해제 플래그
+    localStorage.removeItem("connectedWallet");
+
+    onDisconnect(); // 상태 초기화
     onClose(); // 모달 닫기
   };
 
   const handlewindow = async () => {
     if (wallet.type === "wepin") {
-      await openWepinWidget(); // Wepin 로그아웃
+      await openWepinWidget();
     }
   };
 
