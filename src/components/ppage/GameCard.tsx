@@ -7,6 +7,7 @@ import { toast } from "react-toastify";
 import { uploadGameImage } from "../../lib/uploadGameImage";
 import { supabase } from "../../lib/supabaseClient";
 import { FaFileUpload } from "react-icons/fa";
+import { useRouter } from "next/navigation";
 
 type Game = {
   title: string;
@@ -19,12 +20,13 @@ type Game = {
 
 type Props = {
   game?: Game;
-  createMode?: boolean;
-  variant?: "default" | "featured";
+  createMode?: boolean; //Create Card
+  variant?: "default" | "featured"; //Card Style
   showPlayButton?: boolean;
+  navigateTo?: string; //Move Path
 };
 
-export default function GameCard({ game, createMode = false, variant = "default", showPlayButton = true }: Props) {
+export default function GameCard({ game, createMode = false, variant = "default", showPlayButton = true, navigateTo }: Props) {
   const [Title, setTitle] = useState("");
   const [Players, setPlayers] = useState<number>(0);
   const [Era, setEra] = useState("");
@@ -32,6 +34,8 @@ export default function GameCard({ game, createMode = false, variant = "default"
   const [Plan, setPlan] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
+
+  const router = useRouter();
 
   const handleCreate = async (data: { Title: string; Players: number; Era: string; Genre: string; Plan: number }) => {
     setLoading(true);
@@ -43,7 +47,7 @@ export default function GameCard({ game, createMode = false, variant = "default"
       if (result) {
         uploadedImageUrl = result;
       } else {
-        toast.error("이미지 업로드 실패");
+        toast.error("Image Upload Failed");
         setLoading(false);
         return;
       }
@@ -60,7 +64,7 @@ export default function GameCard({ game, createMode = false, variant = "default"
       },
     ]);
     if (error) {
-      toast.error("데이터 저장 실패: " + error.message);
+      toast.error("Data Save Failed " + error.message);
       setLoading(false);
       return;
     }
@@ -88,6 +92,12 @@ export default function GameCard({ game, createMode = false, variant = "default"
       className={`bg-gray-800 text-white mt-10 rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 flex flex-col ring-1 ring-gray-600
          ${variant === "featured" ? "bg-white scale-105 hover:shadow-2xl ml-10  ring-2 ring-white w-[210px] m-3 rounded-none" : ""}
     `}
+      onClick={() => {
+        if (!showPlayButton && navigateTo) {
+          router.push(navigateTo);
+        }
+      }}
+      style={{ cursor: !showPlayButton && navigateTo ? "pointer" : "default" }}
     >
       {createMode ? (
         <div className="px-4">
@@ -162,7 +172,7 @@ export default function GameCard({ game, createMode = false, variant = "default"
           <Image src={game!.image} alt={game!.title} width={324} height={324} className="object-cover h-70 transition-transform duration-300 hover:scale-105 cursor-pointer  " />
           <div className="p-4 space-y-2 ">
             <h3 className="text-xl font-bold">{game!.title}</h3>
-            <div className="text-sm text-gray-500 space-y-1">
+            <div className="text-sm text-gray-400 space-y-1">
               <p>Title: {game!.title}</p>
               <p>Players: {game!.players}</p>
               <p>Era: {game!.Era}</p>
@@ -171,7 +181,16 @@ export default function GameCard({ game, createMode = false, variant = "default"
             </div>
             {showPlayButton !== false && (
               <div className="pt-2">
-                <button className="relative group inline-block">
+                <button
+                  className="relative group inline-block"
+                  onClick={() => {
+                    if (navigateTo) {
+                      router.push(navigateTo);
+                    } else {
+                      console.warn("No navigation target specified");
+                    }
+                  }}
+                >
                   <span className="absolute inset-0 rounded-[1rem_0.5rem_1rem_0.5rem] bg-gradient-to-r from-pink-400 via-purple-500 to-blue-500" aria-hidden="true" />
                   <span className="relative flex items-center justify-center bg-gray-800 text-white font-bold rounded-[1rem_0.5rem_1.5rem_0.5rem] m-0.5 px-6 py-2 min-w-[10px]">Play</span>
                 </button>

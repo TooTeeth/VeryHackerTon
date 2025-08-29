@@ -68,7 +68,7 @@ export default function PlatformFilter({ filters, onFilterChange, onReset }: Pla
                 setOpenDropdown(openDropdown === key ? null : key);
               }
             }}
-            className={`transition hover:text-black ${(key === null && Object.keys(filters).length === 0) || (key !== null && filters[key]) ? "text-transparent bg-gradient-to-r from-[#f97171] to-[#8a82f6] bg-clip-text" : ""}`}
+            className={`transition hover:text-black ${(key === null && Object.keys(filters).length === 0) || (key !== null && filters[key]) ? "text-black" : ""}`}
             title={label}
           >
             <div className="flex items-center gap-1">{icon || <span className="text-lg font-bold">{label}</span>}</div>

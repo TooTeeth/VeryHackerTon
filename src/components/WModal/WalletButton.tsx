@@ -86,7 +86,7 @@ export default function WalletButton() {
   }, []);
 
   const getWalletIcon = () => {
-    if (!connectedWallet) return <FaWallet className="text-gray-200" size={28} />;
+    if (!connectedWallet) return <FaWallet className="text-gray-400 hover:text-gray-600" size={28} />;
 
     if (connectedWallet.type === "metamask") {
       return <Image src="/MetamaskLogo.png" alt="Metamask" width={28} height={28} />;
@@ -108,7 +108,7 @@ export default function WalletButton() {
 
   return (
     <>
-      <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2  px-3 py-1 rounded-full cursor-pointer  hover:bg-gray-200">
+      <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2  px-3 py-1 rounded-full cursor-pointer  ">
         {getWalletIcon()}
         {connectedWallet && <span className=" font-semibold text-gray-100 dark:text-white">{getConnectedText()}</span>}
       </button>

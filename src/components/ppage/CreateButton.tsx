@@ -70,8 +70,8 @@ export default function CreateButton({ data, onCreate }: Props) {
     if (loading) return;
 
     const { Title, Players, Era, Genre, Plan } = data;
-    if (!Title || Players <= 0 || !Era || !Genre || Plan <= 0) {
-      toast.error("모든 필드를 올바르게 입력해주세요.");
+    if (!Title || Players < 0 || !Era || !Genre || Plan < 0) {
+      toast.error("Fill in all fields.");
       return;
     }
 

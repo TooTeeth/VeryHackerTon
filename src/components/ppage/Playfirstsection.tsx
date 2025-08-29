@@ -98,6 +98,7 @@ export default function PlayfirstSection() {
                 image: game.Image || "/Mainpage/Very.png",
               }}
               showPlayButton={false}
+              navigateTo={`/Stream/${encodeURIComponent(game.Title)}`}
             />
           ))}
         </div>
