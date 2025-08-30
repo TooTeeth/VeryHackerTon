@@ -1,4 +1,5 @@
-import Slippage from "../../components/SwapPage/Slippage";
+import { ToastContainer } from "react-toastify";
+import ConnectWalletBox from "../../components/SwapPage/ConnectWalletBox";
 import SwapBox from "../../components/SwapPage/SwapBox";
 
 export default function SwapPage() {
@@ -56,10 +57,11 @@ export default function SwapPage() {
 
           <div style={{ position: "relative", zIndex: 10 }}>
             <div className="w-full flex justify-center">
-              <button className="p-3 rounded-lg cursor-default font-semibold text-2xl shadow-md text-white bg-none w-full">Swap</button>
+              <button className="p-3 rounded-lg cursor-default font-semibold text-2xl shadow-md text-white bg-none w-full mb-10">Swap</button>
             </div>
+            <ToastContainer autoClose={3000} hideProgressBar={false} newestOnTop={false} closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover toastStyle={{ marginTop: "80px" }} />
             <SwapBox />
-            <Slippage />
+            <ConnectWalletBox />
           </div>
         </div>
       </div>

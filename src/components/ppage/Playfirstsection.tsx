@@ -5,7 +5,16 @@ import GameCard from "./GameCard";
 import { supabase } from "../../lib/supabaseClient";
 import { Pagination } from "./Pagination";
 import PlatformFilter from "./GameFilter";
-import { IoInfiniteOutline } from "react-icons/io5";
+
+type streamdata = {
+  id: number;
+  Title: string;
+  Players: number;
+  Era: string;
+  Genre: string;
+  Plan: number;
+  Image?: string;
+};
 
 type Filters = {
   Era?: string;
@@ -15,7 +24,7 @@ type Filters = {
 };
 
 export default function PlayfirstSection() {
-  const [games, setGames] = useState<any[]>([]);
+  const [games, setGames] = useState<streamdata[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
@@ -98,7 +107,6 @@ export default function PlayfirstSection() {
                 image: game.Image || "/Mainpage/Very.png",
               }}
               showPlayButton={false}
-              navigateTo={`/Stream/${encodeURIComponent(game.Title)}`}
             />
           ))}
         </div>

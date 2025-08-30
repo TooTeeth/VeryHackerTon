@@ -10,13 +10,13 @@ export async function uploadGameImage(file: File): Promise<string | null> {
   });
 
   if (error) {
-    console.error("업로드 실패:", error);
+    console.error("Image Upload Failed:", error);
     return null;
   }
 
   const { data } = supabase.storage.from("game-images").getPublicUrl(`games/${fileName}`);
   if (error || !data?.publicUrl) {
-    console.error("공개 URL 생성 실패:", error);
+    console.error("Public URL create Failed:", error);
     return null;
   }
 

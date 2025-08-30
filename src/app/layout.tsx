@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import type { Metadata } from "next";
 import "./globals.css";
 import Headertop from "../components/HeaderTop";
+import { WalletProvider } from "./context/WalletContext";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -16,8 +17,10 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en" suppressHydrationWarning={true}>
       <body className="bg-white dark:bg-c89bec min-h-screen">
-        <Headertop />
-        {children}
+        <WalletProvider>
+          <Headertop />
+          {children}
+        </WalletProvider>
       </body>
     </html>
   );

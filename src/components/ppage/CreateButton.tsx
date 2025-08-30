@@ -42,7 +42,7 @@ export default function CreateButton({ data, onCreate }: Props) {
   useEffect(() => {
     if (!window.ethereum) return;
 
-    const handleChainChanged = (_chainId: string) => {
+    const handleChainChanged = () => {
       window.location.reload();
     };
 
@@ -87,7 +87,7 @@ export default function CreateButton({ data, onCreate }: Props) {
       toast.info("Please connect your wallet first.");
       try {
         await ethereum.request({ method: "eth_requestAccounts" });
-      } catch (error) {
+      } catch {
         toast.error("User rejected wallet connection.");
         return;
       }

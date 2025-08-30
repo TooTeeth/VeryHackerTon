@@ -6,6 +6,7 @@ import Image from "next/image";
 import { loginWithWepin } from "../../lib/wepin";
 import { ethers } from "ethers";
 import { useState } from "react";
+import { toast } from "react-toastify";
 
 const wallets: { name: string; src: string; type: "metamask" | "wepin" }[] = [
   { name: "Metamask", src: "/MetamaskLogo.png", type: "metamask" },
@@ -14,14 +15,11 @@ const wallets: { name: string; src: string; type: "metamask" | "wepin" }[] = [
 
 export default function WalletModal({ onClose, onConnect }: { onClose: () => void; onConnect: (walletType: "metamask" | "wepin", address?: string) => void }) {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const handleWalletClick = async (type: "metamask" | "wepin") => {
-    setError(null);
-
     if (type === "metamask") {
       if (!window.ethereum) {
-        setError("MetaMask를 설치해주세요!");
+        toast.error("MetaMask를 설치해주세요!");
         return;
       }
       setLoading(true);
@@ -32,11 +30,10 @@ export default function WalletModal({ onClose, onConnect }: { onClose: () => voi
           onConnect("metamask", accounts[0]);
           onClose();
         } else {
-          setError("지갑을 찾을 수 없습니다.");
+          toast.error("지갑을 찾을 수 없습니다.");
         }
-      } catch (e) {
-        setError("메타마스크 연결 실패");
-        console.error(e);
+      } catch {
+        toast.error("메타마스크 연결 실패");
       } finally {
         setLoading(false);
       }
@@ -49,8 +46,8 @@ export default function WalletModal({ onClose, onConnect }: { onClose: () => voi
           console.error("Wepin 로그인 실패 또는 walletId 없음");
           onConnect(type); // 실패 시 주소 없이 호출
         }
-      } catch (error) {
-        console.error("Wepin 로그인 에러", error);
+      } catch (err) {
+        console.error("Wepin 로그인 에러", err);
         onConnect(type);
       }
     }
@@ -58,25 +55,18 @@ export default function WalletModal({ onClose, onConnect }: { onClose: () => voi
   };
 
   return (
-    <div style={overlayStyle}>
-      <div style={modalStyle}>
-        <button style={closeBtnStyle} onClick={onClose} className="dark:text-black">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="relative bg-white dark:bg-gray-900 rounded-xl p-6 w-[320px] shadow-xl text-center">
+        <button onClick={onClose} className="absolute top-2 right-2 text-black dark:text-white">
           <FaTimes />
         </button>
-        <div className="text-lg mb-5 dark:text-black">Connect Wallet</div>
-        <div className="text-sm mb-3 text-gray-400">Recommend</div>
-        <div className="flex flex-wrap justify-center gap-4">
+        <h2 className="text-xl font-semibold mb-4 text-black dark:text-white">Connect Wallet</h2>
+        <p className="text-sm text-gray-500 mb-4">Recommend</p>
+        <div className="flex justify-center gap-4 text-black dark:text-white">
           {wallets.map((wallet) => (
-            <button
-              key={wallet.name}
-              className="w-24 h-25 border border-gray-200 rounded-lg p-3 flex flex-col items-center justify-center
-              cursor-pointer hover:shadow-md transition-shadow"
-              type="button"
-              onClick={() => handleWalletClick(wallet.type)}
-              disabled={loading}
-            >
-              <Image src={wallet.src} alt={wallet.name} width={200} height={50} />
-              <span className="text-sm font-medium truncate">{wallet.name}</span>
+            <button key={wallet.name} className={`w-24 h-24 border rounded-lg p-3 flex flex-col items-center justify-center hover:shadow-md ${loading ? "opacity-50 cursor-not-allowed" : ""}`} onClick={() => handleWalletClick(wallet.type)} disabled={loading}>
+              <Image src={wallet.src} alt={wallet.name} width={40} height={40} />
+              <span className="text-sm font-medium">{wallet.name}</span>
             </button>
           ))}
         </div>
@@ -84,34 +74,3 @@ export default function WalletModal({ onClose, onConnect }: { onClose: () => voi
     </div>
   );
 }
-
-const overlayStyle: React.CSSProperties = {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  width: "100vw",
-  height: "100vh",
-  background: "rgba(0,0,0,0.5)",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  zIndex: 1000,
-};
-
-const modalStyle: React.CSSProperties = {
-  background: "#fff",
-  padding: "2rem",
-  borderRadius: "12px",
-  position: "relative",
-  width: "300px",
-  textAlign: "center",
-};
-
-const closeBtnStyle: React.CSSProperties = {
-  position: "absolute",
-  top: "10px",
-  right: "10px",
-  background: "none",
-  border: "none",
-  cursor: "pointer",
-};

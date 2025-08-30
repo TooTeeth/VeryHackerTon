@@ -41,7 +41,7 @@ export default function Headertop() {
 
       {/* 오른쪽: 버튼 및 아이콘 */}
       <div className="flex items-center space-x-4 flex-1 justify-end mr-5">
-        <WalletButton />
+        <WalletButton modalPosition="dropdown" />
         <ThemeToggle />
       </div>
     </div>

@@ -1,64 +1,140 @@
 "use client";
 
-import { useState } from "react";
-import Image from "next/image";
-import { IoSwapVertical } from "react-icons/io5";
+import { useReducer, useState } from "react";
+
+import { depositVery } from "../../lib/transactionvery";
+import SwapForm from "./SwapForm";
+import { useWallet } from "../../app/context/WalletContext";
+import { processWithdrawRequests } from "../../lib/withdraw";
+import { toast } from "react-toastify";
+
+const initialState = {
+  fromToken: { symbol: "VTDN", img: "/VTDNLogo.png" },
+  toToken: { symbol: "VERY", img: "/Mainpage/Very.png" },
+  fromValue: "0.00",
+  toValue: "0.00",
+};
 
 export default function SwapBox() {
-  const [fromToken, setFromToken] = useState({ symbol: "VTDN", img: "/VTDNLogo.png" });
-  const [toToken, setToToken] = useState({ symbol: "VERY", img: "/Mainpage/Very.png" });
+  const { wallet } = useWallet();
+  const [state, dispatch] = useReducer(reducer, initialState as typeof initialState);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const [fromValue, setFromValue] = useState("0.00");
-  const [toValue, setToValue] = useState("0.00");
-
-  const handleFromChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    if (/^\d*\.?\d*$/.test(value)) {
-      setFromValue(value);
-
-      const num = parseFloat(value) || 0;
-      setToValue((num / 100).toFixed(2));
+  //call receiveVery
+  async function handleDeposit(amount: string) {
+    const parsed = amount?.trim();
+    if (!parsed || isNaN(Number(parsed))) {
+      toast.error("Invalid amount input");
+      return;
     }
-  };
 
-  const handleSwap = () => {
-    setFromToken(toToken);
-    setToToken(fromToken);
+    if (!wallet?.address) {
+      toast.error("Please connect your wallet first");
+      return;
+    }
 
-    setFromValue(toValue);
-    setToValue(fromValue);
-  };
+    try {
+      setIsLoading(true);
+      await depositVery(parsed, wallet.address);
+      toast.success("Deposit success");
+    } catch (err: unknown) {
+      if (typeof err === "object" && err !== null && "message" in err) {
+        const error = err as { message?: string; code?: string; info?: { error?: { code?: number; message?: string } } };
+
+        if (error.code === "ACTION_REJECTED" && error.info?.error?.code === 4001) {
+          return;
+        }
+
+        toast.error(error.message || "Unknown error");
+      } else {
+        toast.error("Unexpected error");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  //call withdraw
+  async function handleClaim(amount: string) {
+    if (!wallet?.address) {
+      toast.error("Please connect your wallet first");
+      return;
+    }
+    const parsed = parseFloat(amount?.trim() || "0");
+    if (isNaN(parsed) || parsed <= 0) {
+      toast.error("Invalid amount input");
+      return;
+    }
+    try {
+      setIsLoading(true);
+      await processWithdrawRequests(wallet.address, amount);
+      toast.success("withdraw success");
+    } catch (err: unknown) {
+      if (typeof err === "object" && err !== null && "message" in err) {
+        const error = err as { message?: string; code?: string; info?: { error?: { code?: number; message?: string } } };
+        if (error.code === "ACTION_REJECTED" && error.info?.error?.code === 4001) {
+          return;
+        }
+
+        toast.error(error.message || "Unknown error");
+      } else {
+        toast.error("Unexpected error");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   return (
-    <div className="max-w-md mx-auto p-7 space-y-8  backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl shadow-md flex-col  ring-gray-200 text-white">
-      <div className="p-4  rounded-xl ring-1 ring-pink-400">
-        <label className="text-sm font-semibold  ">From:</label>
-        <div className="flex items-center justify-between mt-1">
-          <div className="flex items-center gap-2">
-            <Image src={fromToken.img} alt={fromToken.symbol} width={24} height={24} />
-            <span className="font-semibold text-lg ">{fromToken.symbol}</span>
-          </div>
-          <input type="number" step="0.01" value={fromValue} onChange={handleFromChange} className="bg-transparent text-right text-xl font-semibold w-24" />
-        </div>
-      </div>
+    <div>
+      <SwapForm state={state} dispatch={dispatch} />
+      <div className="flex justify-center items-center">
+        <button
+          onClick={() => (state.fromToken.symbol === "VTDN" ? handleClaim(state.fromValue) : handleDeposit(state.fromValue))}
+          disabled={isLoading}
+          className={`relative inline-flex items-center justify-center mt-4 w-24 py-3 font-bold text-white rounded-lg
+    ${isLoading ? "cursor-not-allowed" : "group"}`}
+        >
+          <span className="absolute inset-0 bg-gradient-to-r from-pink-500 to-blue-500 rounded-lg blur-sm opacity-75 group-hover:opacity-100 transition duration-300" />
 
-      <div className="relative flex items-center justify-center my-4 cursor-pointer" onClick={handleSwap}>
-        <div className="w-full h-px bg-gray-300" />
-        <div className="absolute bg-white rounded-full border p-2 shadow z-10">
-          <IoSwapVertical className="text-gray-600" />
-        </div>
-      </div>
+          <span className={`absolute inset-0 rounded-lg ${isLoading ? "bg-black" : "bg-black border border-transparent group-hover:border-white transition duration-300"}`} />
 
-      <div className="p-4 ring-1 ring-purple-400 rounded-xl">
-        <label className="text-sm font-semibold ">To:</label>
-        <div className="flex items-center justify-between mt-1">
-          <div className="flex items-center gap-2">
-            <Image src={toToken.img} alt={toToken.symbol} width={24} height={24} />
-            <span className="font-semibold text-lg">{toToken.symbol}</span>
-          </div>
-          <input type="number" value={toValue} readOnly className="bg-transparent text-right text-xl font-semibold w-24" />
-        </div>
+          <span className="relative z-10">{isLoading ? "Pending..." : state.fromToken.symbol === "VTDN" ? "Claim" : "Deposit"}</span>
+        </button>
       </div>
     </div>
   );
+}
+
+type SwapAction = { type: "SET_FROM_VALUE"; payload: string } | { type: "SWAP_TOKENS" };
+
+function reducer(state: typeof initialState, action: SwapAction) {
+  switch (action.type) {
+    case "SET_FROM_VALUE": {
+      const from = action.payload;
+      const parsed = parseFloat(from) || 0;
+      if (state.fromToken.symbol === "VTDN") {
+        return {
+          ...state,
+          fromValue: from,
+          toValue: (parsed / 100).toString(),
+        };
+      } else {
+        return {
+          ...state,
+          fromValue: from,
+          toValue: (parsed * 100).toString(),
+        };
+      }
+    }
+    case "SWAP_TOKENS":
+      return {
+        fromToken: state.toToken,
+        toToken: state.fromToken,
+        fromValue: state.toValue,
+        toValue: state.fromValue,
+      };
+    default:
+      return state;
+  }
 }

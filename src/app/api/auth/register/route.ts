@@ -33,16 +33,25 @@ export async function POST(request: NextRequest) {
     const { data: newUser, error: insertError } = await supabase
       .from("Users")
       .insert([{ wallet_address: walletAddress }])
+      .select("id")
       .single();
 
     if (insertError) {
-      console.error("🔴 insertError:", insertError); // ✅ 에러 로그
+      console.error("🔴 insertError:", insertError);
       return NextResponse.json({ error: insertError.message }, { status: 500 });
+    }
+
+    // vtdn tabla initailize create
+    const { error: vtdnError } = await supabase.from("vtdn").insert([{ user_id: newUser.id, vtdn_balance: 0 }]);
+
+    if (vtdnError) {
+      console.error("🔴 vtdnError:", vtdnError);
+      return NextResponse.json({ error: vtdnError.message }, { status: 500 });
     }
 
     return NextResponse.json({ user: newUser }, { status: 201 });
   } catch (error) {
-    console.error("🔴 unexpected error:", error); // ✅ 에러 로그
+    console.error("🔴 unexpected error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

@@ -7,7 +7,6 @@ import { toast } from "react-toastify";
 import { uploadGameImage } from "../../lib/uploadGameImage";
 import { supabase } from "../../lib/supabaseClient";
 import { FaFileUpload } from "react-icons/fa";
-import { useRouter } from "next/navigation";
 
 type Game = {
   title: string;
@@ -23,10 +22,9 @@ type Props = {
   createMode?: boolean; //Create Card
   variant?: "default" | "featured"; //Card Style
   showPlayButton?: boolean;
-  navigateTo?: string; //Move Path
 };
 
-export default function GameCard({ game, createMode = false, variant = "default", showPlayButton = true, navigateTo }: Props) {
+export default function GameCard({ game, createMode = false, variant = "default", showPlayButton = true }: Props) {
   const [Title, setTitle] = useState("");
   const [Players, setPlayers] = useState<number>(0);
   const [Era, setEra] = useState("");
@@ -34,8 +32,6 @@ export default function GameCard({ game, createMode = false, variant = "default"
   const [Plan, setPlan] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
-
-  const router = useRouter();
 
   const handleCreate = async (data: { Title: string; Players: number; Era: string; Genre: string; Plan: number }) => {
     setLoading(true);
@@ -55,7 +51,7 @@ export default function GameCard({ game, createMode = false, variant = "default"
 
     const { error } = await supabase.from("Stream").insert([
       {
-        Title,
+        Title: data.Title,
         Players,
         Era,
         Genre,
@@ -93,11 +89,10 @@ export default function GameCard({ game, createMode = false, variant = "default"
          ${variant === "featured" ? "bg-white scale-105 hover:shadow-2xl ml-10  ring-2 ring-white w-[210px] m-3 rounded-none" : ""}
     `}
       onClick={() => {
-        if (!showPlayButton && navigateTo) {
-          router.push(navigateTo);
+        if (!showPlayButton) {
         }
       }}
-      style={{ cursor: !showPlayButton && navigateTo ? "pointer" : "default" }}
+      style={{ cursor: !showPlayButton ? "pointer" : "default" }}
     >
       {createMode ? (
         <div className="px-4">
@@ -181,16 +176,7 @@ export default function GameCard({ game, createMode = false, variant = "default"
             </div>
             {showPlayButton !== false && (
               <div className="pt-2">
-                <button
-                  className="relative group inline-block"
-                  onClick={() => {
-                    if (navigateTo) {
-                      router.push(navigateTo);
-                    } else {
-                      console.warn("No navigation target specified");
-                    }
-                  }}
-                >
+                <button className="relative group inline-block">
                   <span className="absolute inset-0 rounded-[1rem_0.5rem_1rem_0.5rem] bg-gradient-to-r from-pink-400 via-purple-500 to-blue-500" aria-hidden="true" />
                   <span className="relative flex items-center justify-center bg-gray-800 text-white font-bold rounded-[1rem_0.5rem_1.5rem_0.5rem] m-0.5 px-6 py-2 min-w-[10px]">Play</span>
                 </button>

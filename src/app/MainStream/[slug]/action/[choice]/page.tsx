@@ -1,7 +1,6 @@
-import Link from "next/link";
-
-export default function ActionPage({ params }: { params: { slug: string; choice: string } }) {
-  const { slug, choice } = params;
+export default function ActionPage() {
+  // export default function ActionPage({ params }: { params: { slug: string; choice: string } }) {
+  // const { slug, choice } =  params;
 
   //     if (slug === "vygddrasil") {
   //     return (
@@ -43,12 +42,13 @@ export default function ActionPage({ params }: { params: { slug: string; choice:
 
   // 선택지에 따른 다른 내용 보여주기
   return (
-    <div className="p-10 text-white">
-      <h1>
-        {slug} - 선택지: {choice}
-      </h1>
-      {/* 실제로는 여기서 choice에 따라 다른 컴포넌트, 데이터 로딩 등을 할 수 있음 */}
-      <p>이 선택지를 선택했습니다: {choice}</p>
-    </div>
+    // <div className="p-10 text-white">
+    //   <h1>
+    //     {slug} - 선택지: {choice}
+    //   </h1>
+    //   {/* 실제로는 여기서 choice에 따라 다른 컴포넌트, 데이터 로딩 등을 할 수 있음 */}
+    //   <p>이 선택지를 선택했습니다: {choice}</p>
+    // </div>
+    <div>d</div>
   );
 }
