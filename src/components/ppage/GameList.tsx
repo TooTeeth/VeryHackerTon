@@ -4,27 +4,30 @@ import GameCard from "./GameCard";
 const games = [
   {
     title: "Vygddrasil",
-    image: "/VTDNLogo.png",
+    image: "/Playpage/Vygddrasill2.png",
     players: "∞",
     Era: "MiddleAge",
     genre: "Medievalfantasy",
     Plan: "Free",
+    link: "/vygddrasil",
   },
   {
     title: "Vpunk",
-    image: "/Mainpage/Very.png",
+    image: "/Playpage/vpunk.png",
     players: "∞",
     Era: "Future",
     genre: "Cyberpunk",
     Plan: "Free",
+    link: "/vpunk",
   },
   {
     title: "Obfuscate",
-    image: "/Mainpage/Very.png",
+    image: "/Playpage/obfuscate2.png",
     players: "∞",
     Era: "MiddleAge",
     genre: "Medievalorental",
     Plan: "Free",
+    link: "/obfuscate",
   },
 ];
 

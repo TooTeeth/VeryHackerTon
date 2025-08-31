@@ -7,6 +7,7 @@ import { toast } from "react-toastify";
 import { uploadGameImage } from "../../lib/uploadGameImage";
 import { supabase } from "../../lib/supabaseClient";
 import { FaFileUpload } from "react-icons/fa";
+import Link from "next/link";
 
 type Game = {
   title: string;
@@ -15,6 +16,7 @@ type Game = {
   genre: string;
   Era: string;
   Plan: string;
+  link?: string;
 };
 
 type Props = {
@@ -164,7 +166,10 @@ export default function GameCard({ game, createMode = false, variant = "default"
       ) : (
         // Main Stream Card
         <>
-          <Image src={game!.image} alt={game!.title} width={324} height={324} className="object-cover h-70 transition-transform duration-300 hover:scale-105 cursor-pointer  " />
+          <div className="w-full h-[240px] relative">
+            <Image src={game!.image} alt={game!.title} fill className="object-cover rounded-t-lg" />
+          </div>
+
           <div className="p-4 space-y-2 ">
             <h3 className="text-xl font-bold">{game!.title}</h3>
             <div className="text-sm text-gray-400 space-y-1">
@@ -174,12 +179,14 @@ export default function GameCard({ game, createMode = false, variant = "default"
               <p>Genre: {game!.genre}</p>
               <p>Plan: {game!.Plan}</p>
             </div>
-            {showPlayButton !== false && (
+            {showPlayButton !== false && game?.link && (
               <div className="pt-2">
-                <button className="relative group inline-block">
-                  <span className="absolute inset-0 rounded-[1rem_0.5rem_1rem_0.5rem] bg-gradient-to-r from-pink-400 via-purple-500 to-blue-500" aria-hidden="true" />
-                  <span className="relative flex items-center justify-center bg-gray-800 text-white font-bold rounded-[1rem_0.5rem_1.5rem_0.5rem] m-0.5 px-6 py-2 min-w-[10px]">Play</span>
-                </button>
+                <Link href={game.link}>
+                  <button className="relative group inline-block mt-24">
+                    <span className="absolute inset-0 rounded-[1rem_0.5rem_1rem_0.5rem] bg-gradient-to-r from-pink-400 via-purple-500 to-blue-500" aria-hidden="true" />
+                    <span className="relative flex items-center justify-center bg-gray-800 text-white font-bold rounded-[1rem_0.5rem_1.5rem_0.5rem] m-0.5 px-6 py-2 min-w-[10px]">Play</span>
+                  </button>
+                </Link>
               </div>
             )}
           </div>
