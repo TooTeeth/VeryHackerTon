@@ -22,8 +22,6 @@
 
 ⚙️ Next.js App Router 구조로 구성된 SPA
 
-📱 Wepin으로 간편한 소셜 로그인 지원(Smart contracts are not supported)
-
 ## 기술 스택 (Tech Stack)
 
 ```bash
