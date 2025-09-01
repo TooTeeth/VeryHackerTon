@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
+import Image from "next/image";
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
@@ -23,10 +24,10 @@ export default function StartPage() {
     async function fetchData() {
       setLoading(true);
 
-      // 1. 선택지 가져오기
+      // Fetch choice list
       const { data: choiceData, error: choiceError } = await supabase.from("Vygddrasilchoice").select("*").eq("mainstream_slug", currentFilter);
 
-      // 2. 설명 & 이미지 & 제목 가져오기
+      // Fetch title, description, and image URL for the current filter from Vygddrasilstage table
       const { data: metaData, error: metaError } = await supabase.from("Vygddrasilstage").select("title, description, image_url").eq("slug", currentFilter).single();
 
       if (choiceError || metaError) {
@@ -44,6 +45,7 @@ export default function StartPage() {
     fetchData();
   }, [currentFilter]);
 
+  //Click to select the next option
   const handleChoiceClick = (value: string) => {
     setCurrentFilter(value);
   };
@@ -52,14 +54,17 @@ export default function StartPage() {
   if (choices.length === 0) return <p>No choices available.</p>;
 
   return (
+    //BackGround Img
     <section className="relative h-screen bg-cover bg-center z-0" style={{ backgroundImage: "url('/Vygddrasilpage/background.png')" }}>
+      {/*Error message*/}
       <div className="flex flex-col items-center justify-center h-screen text-center px-4">
         {loading && <p>Loading...</p>}
 
+        {/*Title, Img, Description, Choice*/}
         {!loading && stageMeta && (
           <>
             <h2 className="mt-10 mb-6 text-4xl font-bold text-left max-w-prose mx-0">{stageMeta.title}</h2>
-            <img src={stageMeta.image_url} alt="stage image" className="max-w-xs mb-4 rounded-lg shadow-lg" />
+            <Image src={stageMeta.image_url} alt="stage image" width={320} height={320} className="max-w-xs mb-4 rounded-lg shadow-lg" />
             <p className="mt-4 mb-6 text-2xl text-left max-w-prose mx-0">{stageMeta.description}</p>
           </>
         )}

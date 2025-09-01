@@ -7,6 +7,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const { Players, Creator, Title, Era, Genre, Plan, publicImageUrl } = body;
 
+  //Create Stream
   const { data, error } = await supabase.from("Stream").insert([
     {
       Title,
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
   ]);
 
   if (error) {
-    console.error("게임 생성 오류:", error);
+    console.error("Stream Create Failed:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

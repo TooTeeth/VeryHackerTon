@@ -29,7 +29,7 @@ export default function CharacterCreate() {
   const [selectedClass, setSelectedClass] = useState<keyof typeof classStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const router = useRouter(); // useRouter 훅 호출
+  const router = useRouter();
 
   const handleCreate = async () => {
     if (!wallet) {
@@ -112,6 +112,7 @@ export default function CharacterCreate() {
           <span className="relative flex items-center justify-center bg-gray-700 rounded-[1.5rem_0.5rem_1.5rem_0.5rem] px-10 py-4 min-w-[150px]">{loading ? "Creating..." : "Create"}</span>
         </button>
       </div>
+      {message && <p className="text-red-200 mt-">{message}</p>}
     </section>
   );
 }
