@@ -12,9 +12,9 @@
 
 🎲 탈중앙 텍스트 기반 게임 시스템
 
-🗳️ DAO 기반 스토리 투표 및 결정 시스템
+🗳️ DAO 기반 스토리 투표 및 결정 시스템(구현예정)
 
-🛒 NFT 아이템 및 캐릭터 거래 마켓플레이스
+🛒 NFT 아이템 및 캐릭터 거래 마켓플레이스(구현예정)
 
 🦊 메타마스크 로그인 및 Web3 지갑 연동
 
@@ -22,7 +22,7 @@
 
 ⚙️ Next.js App Router 구조로 구성된 SPA
 
-📱 Wepin으로 간편한 소셜 로그인 지원(Not Smart Contract)
+📱 Wepin으로 간편한 소셜 로그인 지원(Smart contracts are not supported)
 
 ## 기술 스택 (Tech Stack)
 
