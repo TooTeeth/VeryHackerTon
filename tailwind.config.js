@@ -3,10 +3,17 @@ module.exports = {
   content: ["./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
+      colors: {
+        bronze: "#e6be8a",
+      },
       keyframes: {
         float: {
-          "0%, 100%": { transform: "translateX(-50%) translateY(0)" },
-          "50%": { transform: "translateX(-50%) translateY(-10px)" },
+          "0%, 100%": {
+            transform: "translateX(-50%) translateY(0)",
+          },
+          "50%": {
+            transform: "translateX(-50%) translateY(-10px)",
+          },
         },
       },
       animation: {

@@ -28,21 +28,20 @@ export default function CharacterCreate() {
   const { wallet } = useWallet();
   const [selectedClass, setSelectedClass] = useState<keyof typeof classStats | null>(null);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
+
   const router = useRouter();
 
   const handleCreate = async () => {
     if (!wallet) {
-      setMessage("Wallet is not Connected");
+      alert("Wallet is not Connected");
       return;
     }
     if (!selectedClass) {
-      setMessage("Choose One Class");
+      alert("Choose One Class");
       return;
     }
 
     setLoading(true);
-    setMessage("");
 
     const stats = classStats[selectedClass as keyof typeof classStats];
 
@@ -58,9 +57,9 @@ export default function CharacterCreate() {
 
     if (error) {
       console.error(error);
-      setMessage("Create Failed");
+      alert("Create Failed");
     } else {
-      setMessage(`${classNames[selectedClass]} Create!`);
+      alert(`${classNames[selectedClass]} Create!`);
       router.push("/vygddrasil/start");
     }
   };
@@ -112,7 +111,6 @@ export default function CharacterCreate() {
           <span className="relative flex items-center justify-center bg-gray-700 rounded-[1.5rem_0.5rem_1.5rem_0.5rem] px-10 py-4 min-w-[150px]">{loading ? "Creating..." : "Create"}</span>
         </button>
       </div>
-      {message && <p className="text-red-200 mt-">{message}</p>}
     </section>
   );
 }

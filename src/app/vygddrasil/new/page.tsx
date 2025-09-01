@@ -1,5 +1,3 @@
-"use client";
-
 import CharacterCreate from "../../../components/Vygdrasil/CharacterCreate";
 
 export default function JobSelector() {

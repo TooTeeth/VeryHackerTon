@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@openzeppelin/contracts": "^4.8.3",
     "@supabase/supabase-js": "^2.56.0",
     "@wepin/login-js": "^0.0.35",
     "@wepin/pin-js": "^0.0.35",
@@ -29,7 +30,8 @@
     "react-dom": "19.1.0",
     "react-icons": "^5.5.0",
     "react-toastify": "^11.0.5",
-    "swiper": "^11.2.10"
+    "swiper": "^11.2.10",
+    "tailwindcss-textshadow": "^2.1.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -44,5 +46,21 @@
     "tailwindcss": "^3.4.17",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
-  }
+  },
+  "description": "This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).",
+  "main": "postcss.config.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TooTeeth/VeryHackerTon.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/TooTeeth/VeryHackerTon/issues"
+  },
+  "homepage": "https://github.com/TooTeeth/VeryHackerTon#readme"
 }
