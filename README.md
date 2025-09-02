@@ -5,8 +5,13 @@
 당신이 주인공이자 작가가 되는 세계.
 이제, 모두의 선택이 게임 세계를 만듭니다.
 
-🌐 데모 링크
-🔗
+## 🌐 링크
+
+🔗[https://very-hacker-ton-wh5f.vercel.app/](#)
+
+## 🌐 데모 링크
+
+🔗 [https://www.youtube.com/watch?v=vNfXDAA7mAg](#)
 
 ## 🧩 주요 기능 (Features)
 
@@ -75,7 +80,3 @@ Solidity로 작성된 스마트 컨트랙트는 DAO 투표, 스토리 상태 변
 ## 📬 문의
 
 iso7127@gmail.com
-
-## 🌐 데모 링크
-
-🔗 [https://your-demo-link.vercel.app](#)

@@ -71,3 +71,5 @@ Wepin API를 호출하여 OAuth 콜백을 처리하고 토큰을 반환합니다
 현재는 provider가 "google"인 경우만 지원합니다.
 
 Wepin OAuth 콜백 URL은 코드 내 하드코딩 되어 있습니다.
+
+로그인 표시만 해놓고 사용하지 않습니다.
