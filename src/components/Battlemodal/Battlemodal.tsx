@@ -1,6 +1,7 @@
 import React from "react";
 import Image from "next/image";
 import Link from "next/link";
+import MintButton from "../Vygdrasil/MintButton";
 
 type ModalProps = {
   isOpen: boolean;
@@ -20,8 +21,12 @@ export default function BattleModal({ isOpen, onClose }: ModalProps) {
         <div className="flex justify-center items-center ">
           <Image src={"/Vygddrasilpage/compensation.png"} alt="NFT" width={320} height={320} />
         </div>
-        <div className="flex items-center justify-center mt-10 text-2xl fond-bold  ">
-          <Link href={"/play"}>처음으로 돌아가기</Link>
+
+        <div className="flex items-center flex-col justify-center mt-10 text-2xl fond-bold ">
+          <MintButton tokenId={0} amount={1} />
+          <div className="mt-3 ">
+            <Link href={"/play"}>처음으로 돌아가기</Link>
+          </div>
         </div>
       </div>
     </div>

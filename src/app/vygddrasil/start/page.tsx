@@ -67,12 +67,6 @@ export default function StartPage() {
     <section className="relative h-screen bg-cover bg-center z-0" style={{ backgroundImage: "url('/Vygddrasilpage/BACK.jpg')" }}>
       {/*Error message*/}
       <div className="flex flex-col items-center justify-center h-screen  px-4">
-        {/* {loading && (
-          <div className="absolute inset-0 bg-black bg-opacity-70 flex justify-center items-center z-10">
-            <p className="text-white text-xl animate-pulse">Loading...</p>
-          </div>
-        )} */}
-
         {/*Title, Img, Description, Choice*/}
         {stageMeta && (
           <>
