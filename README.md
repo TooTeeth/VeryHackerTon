@@ -48,6 +48,7 @@ npm install
 ## 환경 변수 설정(.env.local)
 
 아래 항목들을 `.env.local`에 추가해주세요:
+wepin은 로그인만 가능. 현재 사용 중지.
 
 ````ini
 NEXT_PUBLIC_WEPIN_APP_ID=your_wepin_app_id
