@@ -85,13 +85,13 @@ body {
 }
 
 .swiper-button-next {
-  background-image: url("/Mainpage/arrow.png") !important;
+  background-image: url("/Mainpage/era/arrow.png") !important;
   right: calc(50% - 265px) !important;
   left: auto !important;
 }
 
 .swiper-button-prev {
-  background-image: url("/Mainpage/arrow-left.png") !important;
+  background-image: url("/Mainpage/era/arrow-left.png") !important;
   left: calc(50% - 265px) !important;
   right: auto !important;
   transform: translateY(-50%) !important;
@@ -103,11 +103,11 @@ body {
 }
 
 .swiper-button-next:hover {
-  background-image: url("/Mainpage/arrow-right-hover.png") !important;
+  background-image: url("/Mainpage/era/arrow-right-hover.png") !important;
   transform: translateY(-50%) scale(1.2) !important;
 }
 
 .swiper-button-prev:hover {
-  background-image: url("/Mainpage/arrow-left-hover.png") !important;
+  background-image: url("/Mainpage/era/arrow-left-hover.png") !important;
   transform: translateY(-50%) scale(1.2) !important;
 }

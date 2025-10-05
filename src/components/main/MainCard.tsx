@@ -9,7 +9,7 @@ export default function MainCard() {
         position: "relative",
         height: "100vh",
         scrollSnapAlign: "start",
-        backgroundImage: "url('/Mainpage/EraBackgound.png')",
+        backgroundImage: "url('/Mainpage/era/era-background.png')",
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat",

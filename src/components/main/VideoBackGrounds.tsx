@@ -26,7 +26,7 @@ export default function VideoBackGrounds() {
           width: "1500px",
         }}
       >
-        <Image src="/Mainpage/phrase2.png" alt="Main phrase" width={1920} height={846} priority />
+        <Image src="/Mainpage/phrase.png" alt="Main phrase" width={1920} height={846} priority />
       </div>
     </section>
   );

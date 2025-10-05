@@ -12,37 +12,37 @@ export default function CarouselComponent() {
   const slides = [
     {
       title: "Medieval fantasy",
-      image: "/Mainpage/Medievalfantasy.png",
+      image: "/Mainpage/era/era-medieval-fantasy.png",
       video: "/videos/MedievalfantasyVideo.mp4",
       link: "/play",
     },
     {
       title: "CyberPunk",
-      image: "/Mainpage/CyberPunkERA.png",
+      image: "/Mainpage/era/era-cyberpnk.png",
       video: "/videos/CyberVideo.mp4",
       link: "/play",
     },
     {
       title: "Medieval oriental",
-      image: "/Mainpage/Medievalorental.png",
+      image: "/Mainpage/era/era-medieval-oriental.png",
       video: "/videos/MedievalorentalVideo.mp4",
       link: "/play",
     },
     {
       title: "Romance",
-      image: "/Mainpage/Romance.png",
+      image: "/Mainpage/era/era-romance.png",
       video: "/videos/RomanceVideo.mp4",
       link: "/play",
     },
     {
       title: "Modern Warfare",
-      image: "/Mainpage/ModernWarfare.png",
+      image: "/Mainpage/era/era-modern-warfare.png",
       video: "/videos/ModernWarfareVideo.mp4",
       link: "/play",
     },
     {
       title: "Thriller",
-      image: "/Mainpage/thriller.png",
+      image: "/Mainpage/era/era-thriller.png",
       video: "/videos/ThrillerVideo.mp4",
       link: "/play",
     },
