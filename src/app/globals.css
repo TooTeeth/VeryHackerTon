@@ -86,16 +86,14 @@ body {
 
 .swiper-button-next {
   background-image: url("/Mainpage/era/arrow.png") !important;
-  right: calc(50% - 265px) !important;
+  right: clamp(20px, calc(50% - 265px), 60px) !important;
   left: auto !important;
 }
 
 .swiper-button-prev {
   background-image: url("/Mainpage/era/arrow-left.png") !important;
-  left: calc(50% - 265px) !important;
+  left: clamp(20px, calc(50% - 265px), 60px) !important;
   right: auto !important;
-  transform: translateY(-50%) !important;
-  transition: transform 0.3s ease !important;
 }
 
 .swiper-button-next:hover {

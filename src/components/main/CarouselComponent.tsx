@@ -5,7 +5,7 @@ import "swiper/css";
 import "swiper/css/effect-coverflow";
 import "swiper/css/navigation";
 import { EffectCoverflow, Navigation } from "swiper/modules";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 export default function CarouselComponent() {
@@ -76,7 +76,7 @@ export default function CarouselComponent() {
             slidesPerView: 1,
             centeredSlides: false,
           },
-          1024: {
+          1025: {
             slidesPerView: 3,
             centeredSlides: true,
           },
@@ -107,12 +107,12 @@ export default function CarouselComponent() {
         .carousel-container {
           position: relative;
           width: 100%;
-          max-width: 1300px;
+          max-width: 1500px;
           margin: 0 auto;
           display: flex;
           justify-content: center;
           align-items: center;
-          margin-top: 350px;
+          margin-top: 40px;
         }
 
         .slide-wrapper {
@@ -177,11 +177,14 @@ export default function CarouselComponent() {
           -webkit-mask-composite: destination-out;
           padding: 4px;
         }
-
         @media (max-width: 1024px) {
           .carousel-container {
             width: 90%;
-            height: 220px;
+            height: 100px;
+          }
+
+          .video-content {
+            max-height: 300px;
           }
 
           .slide-image {
@@ -192,13 +195,18 @@ export default function CarouselComponent() {
         @media (max-width: 862px) {
           .carousel-container {
             width: 70%;
-            height: 200px;
-            padding: 0 0px;
+            height: 90px;
+            width: 400px !important;
+            height: 100px !important;
+            margin-top: 120px;
           }
 
-          .slide-image,
+          .slide-image {
+            max-height: 250px;
+          }
+
           .video-content {
-            max-height: 200px;
+            max-height: 250px;
           }
 
           .slide-title {
