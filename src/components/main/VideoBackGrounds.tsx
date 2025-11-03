@@ -21,7 +21,7 @@ export default function VideoBackGrounds() {
 
       {/* Main Phrase */}
       <div
-        className="absolute top-1/2 left-1/2 z-10 transform -translate-x-1/2 -translate-y-1/2 pb-20"
+        className="absolute top-1/2 left-1/2 z-10 transform -translate-x-1/2 -translate-y-1/2 pb-20 "
         style={{
           width: "1500px",
         }}

@@ -17,7 +17,7 @@ module.exports = {
         },
       },
       animation: {
-        float: "float 2s ease-in-out infinite",
+        float: "float 5s ease-in-out infinite",
       },
     },
   },

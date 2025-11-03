@@ -9,75 +9,67 @@ export default function Explain() {
         position: "relative",
         height: "100vh",
         scrollSnapAlign: "start",
-        backgroundImage: "url('/Mainpage/explain/explain-background.png')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
         color: "white",
         textAlign: "center",
+        overflow: "hidden",
       }}
     >
-      {/*Blur */}
       <div
         style={{
-          padding: "1rem",
           position: "relative",
-          zIndex: 10,
-          borderRadius: "1rem",
-          backdropFilter: "blur(0.05px)",
-          backgroundColor: "rgba(255, 255, 255, 0.02)",
-          border: "1px solid rgba(255, 255, 255, 0.05)",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
           maxWidth: "min(90%, 1400px)",
           width: "100%",
-          boxSizing: "border-box",
+          zIndex: 1,
         }}
       >
         <div
           style={{
             position: "absolute",
-            top: "-40px",
-            right: "-40px",
-            width: "120px",
-            height: "120px",
-            background: "radial-gradient(circle, rgba(255, 79, 79, 0.3), transparent 70%)",
-            borderRadius: "50%",
-            pointerEvents: "none",
-            filter: "blur(40px)",
+            inset: 0,
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 0,
           }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: "-40px",
-            left: "-40px",
-            width: "120px",
-            height: "120px",
-            background: "radial-gradient(circle, rgba(255, 79, 180, 0.3), transparent 70%)",
-            borderRadius: "50%",
-            pointerEvents: "none",
-            filter: "blur(40px)",
-          }}
-        />
-
-        {/* Logo */}
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
-          <Image src="/VTDNLogo.png" alt="logo" width={0} height={0} sizes="100vw" style={{ width: "clamp(150px, 25vw, 250px)", height: "auto" }} />
+        >
+          <Image src="/Mainpage/explain/explain-background.png" alt="Logo background" width={1240} height={1240} />
         </div>
 
-        {/* Text */}
         <div
           style={{
+            position: "relative",
+            zIndex: 2,
+          }}
+        >
+          <Image
+            src="/VTDNLogo.png"
+            alt="logo"
+            width={0}
+            height={0}
+            sizes="100vw"
+            style={{
+              width: "clamp(150px, 25vw, 250px)",
+              height: "auto",
+            }}
+          />
+        </div>
+
+        {/* ⚪ 텍스트 */}
+        <div
+          style={{
+            position: "relative",
+            zIndex: 3,
             fontSize: "clamp(1rem, 2vw, 1.5rem)",
             lineHeight: "clamp(1.5rem, 3vw, 2.25rem)",
-            marginTop: "0.5rem",
-            maxWidth: "1000px",
+            marginTop: "1rem",
+            maxWidth: "900px",
           }}
         >
           <p>
@@ -92,8 +84,14 @@ export default function Explain() {
           <p>Your decisions become the truth of this world.</p>
         </div>
 
-        {/* Button */}
-        <div style={{ marginTop: "2rem" }}>
+        {/* ⚪ 버튼 */}
+        <div
+          style={{
+            marginTop: "2rem",
+            position: "relative",
+            zIndex: 3,
+          }}
+        >
           <Link href="/play" className="relative group inline-block">
             <span
               style={{

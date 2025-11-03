@@ -1,4 +1,3 @@
-import { GiLeafSwirl } from "react-icons/gi";
 import CarouselComponent from "./CarouselComponent";
 
 export default function MainCard() {
@@ -38,11 +37,6 @@ export default function MainCard() {
 
       {/* 캐러셀 */}
       <CarouselComponent />
-
-      {/* 아래 장식 */}
-      <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white">
-        <GiLeafSwirl size={50} />
-      </div>
     </section>
   );
 }
