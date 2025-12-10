@@ -16,14 +16,24 @@ type CardType = {
   claimed_by?: string[];
 };
 
+type ClaimRecord = {
+  [cardId: number]: string; // cardId: lastClaimDate (YYYY-MM-DD)
+};
+
 export default function AdsVeryCard() {
   const { wallet } = useWallet();
 
   const [totalClaimed, setTotalClaimed] = useState(0);
-
   const [cards, setCards] = useState<CardType[]>([]);
+  const [claimRecords, setClaimRecords] = useState<ClaimRecord>({});
 
-  //Local state
+  // 오늘 날짜를 YYYY-MM-DD 형식으로 반환
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split("T")[0];
+  };
+
+  // 카드 데이터 가져오기
   useEffect(() => {
     const fetchData = async () => {
       const { data, error } = await supabase.from("redirects").select("*");
@@ -32,42 +42,117 @@ export default function AdsVeryCard() {
     fetchData();
   }, []);
 
+  // localStorage에서 클릭 기록 불러오기
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("totalClaimed");
+    if (typeof window !== "undefined" && wallet?.address) {
+      const stored = localStorage.getItem(`claimRecords_${wallet.address}`);
+      if (stored) {
+        setClaimRecords(JSON.parse(stored));
+      }
+    }
+  }, [wallet?.address]);
+
+  // totalClaimed 불러오기
+  useEffect(() => {
+    if (typeof window !== "undefined" && wallet?.address) {
+      const stored = localStorage.getItem(`totalClaimed_${wallet.address}`);
       if (stored) setTotalClaimed(parseInt(stored, 10));
     }
-  }, []);
+  }, [wallet?.address]);
 
+  // totalClaimed 저장하기
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("totalClaimed", totalClaimed.toString());
+    if (typeof window !== "undefined" && wallet?.address) {
+      localStorage.setItem(`totalClaimed_${wallet.address}`, totalClaimed.toString());
     }
-  }, [totalClaimed]);
+  }, [totalClaimed, wallet?.address]);
 
-  //Click Ads
+  // claimRecords 저장하기
+  useEffect(() => {
+    if (typeof window !== "undefined" && wallet?.address) {
+      localStorage.setItem(`claimRecords_${wallet.address}`, JSON.stringify(claimRecords));
+    }
+  }, [claimRecords, wallet?.address]);
+
+  // 카드가 오늘 이미 클릭되었는지 확인
+  const isClaimedToday = (cardId: number) => {
+    const today = getTodayDate();
+    return claimRecords[cardId] === today;
+  };
+
+  // 어뷰징 방지: 클릭 간격 추적
+  const [lastClickTime, setLastClickTime] = useState<number>(0);
+  const CLICK_COOLDOWN = 1000; // 3초 쿨다운
+
+  // 클릭 핸들러 - 이미지 클릭 시
+  const handleCardClick = async (card: CardType) => {
+    if (!wallet?.address) {
+      toast.error("Your wallet is not connected.");
+      return;
+    }
+
+    // 이미 오늘 클릭했는지 확인
+    if (isClaimedToday(card.id)) {
+      // 이미 클레임한 경우 페이지만 열기
+      if (card.url) {
+        window.open(card.url, "_blank");
+      }
+      toast.info("Already claimed today. Come back tomorrow!");
+      return;
+    }
+
+    // 쿨다운 확인 (연속 클릭 방지)
+    const now = Date.now();
+    if (now - lastClickTime < CLICK_COOLDOWN) {
+      toast.warning("Please wait a moment before clicking again.");
+      return;
+    }
+    setLastClickTime(now);
+
+    // 페이지 열기
+    if (card.url) {
+      window.open(card.url, "_blank");
+    }
+
+    // 클레임 처리
+    await handleClaim(card.id);
+  };
+
+  // 클레임 처리
   const handleClaim = async (cardId: number) => {
-    if (!wallet?.address) return toast.error("Your wallet is not connected.");
+    if (!wallet?.address) return;
+
+    // 이미 오늘 클릭했는지 재확인
+    if (isClaimedToday(cardId)) {
+      return;
+    }
 
     const { data, error } = await supabase.from("redirects").select("*").eq("id", cardId).single();
 
     if (error || !data) return;
 
-    const alreadyClaimed = data.claimed_by?.includes(wallet.address);
-    if (alreadyClaimed) return;
+    const today = getTodayDate();
 
-    const updatedClaims = [...(data.claimed_by || []), wallet.address];
+    // 클릭 기록 업데이트
+    setClaimRecords((prev) => ({
+      ...prev,
+      [cardId]: today,
+    }));
 
-    await supabase.from("redirects").update({ claimed_by: updatedClaims }).eq("id", cardId);
-
+    // totalClaimed 업데이트
     setTotalClaimed((prev) => prev + data.Adsvalue);
 
-    setCards((prev) => prev.map((card) => (card.id === cardId ? { ...card, claimed_by: updatedClaims } : card)));
+    toast.success(`+${data.Adsvalue} claimed!`);
   };
 
-  //Claim total AdsVery
+  // 전체 클레임
   const handleTotalClaim = async () => {
     if (!wallet?.address) return toast.error("Metamask is not installed.");
+
+    if (totalClaimed === 0) {
+      toast.info("No rewards to claim!");
+      return;
+    }
 
     const { data: user } = await supabase.from("vtdn").select("*").eq("wallet", wallet.address).single();
 
@@ -97,29 +182,17 @@ export default function AdsVeryCard() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-10">
         {cards.map((card) => {
-          const isValueClaimed = wallet?.address ? card.claimed_by?.includes(wallet.address) : false;
-          const handleCardClick = () => {
-            if (card.url) {
-              window.open(card.url, "_blank");
-            }
-          };
+          const isValueClaimed = isClaimedToday(card.id);
 
           return (
-            <div key={card.id} className="cursor-pointer font-bold ring-2 ring-gray-100" onClick={handleCardClick}>
+            <div key={card.id} className="cursor-pointer font-bold ring-2 ring-gray-100" onClick={() => handleCardClick(card)}>
               <Image src={card.image || "/Mainpage/Very.png"} alt={card.name} width={214} height={241} className="w-full object-cover" />
 
               <div className="flex justify-between px-2 py-1">
                 <span>{card.name}</span>
 
                 {!isValueClaimed ? (
-                  <span
-                    className="flex items-center cursor-pointer"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleClaim(card.id);
-                      if (card.url) window.open(card.url, "_blank");
-                    }}
-                  >
+                  <span className="flex items-center">
                     <Image src="/Earnpage/AdsAmount.png" alt="Ads Amount" width={16} height={16} className="mr-1" />
                     {card.Adsvalue}
                   </span>
