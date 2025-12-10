@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { useWallet } from "../context/WalletContext";
@@ -15,19 +16,17 @@ const NFT_CONTRACT_LIST: NFTContract[] = [
   { address: "0x40E3b5A7d76B1b447A98a5287a153BBc36C1615E", type: "ERC1155" },
 ];
 
-// 마켓플레이스 컨트랙트 주소
-const MARKETPLACE_ADDRESS = "0x7A89d1bCDA563e821be1EAb2C14F835eEeBb0536";
+const MARKETPLACE_ADDRESS = "0xe7ab0d36191aF4f5d9ACD98210544fAC48A09eC1";
 
-// 마켓플레이스 ABI
-const MARKETPLACE_ABI = ["function list(address nft, uint256 tokenId, uint256 price) external", "function buy(address nft, uint256 tokenId) external payable", "function cancel(address nft, uint256 tokenId) external", "function getInfo(address nft, uint256 tokenId) external view returns (address seller, uint256 price)", "function price(address nft, uint256 tokenId) external view returns (uint256)", "function seller(address nft, uint256 tokenId) external view returns (address)", "function marketplaceBalance(address nft, uint256 tokenId) external view returns (uint256)"];
+const MARKETPLACE_ABI = ["function list(address nft, uint256 tokenId, uint256 price, uint256 amount) external", "function buy(address nft, uint256 tokenId, uint256 amount) external payable", "function cancel(address nft, uint256 tokenId, uint256 amount) external", "function cancelAll(address nft, uint256 tokenId) external", "function getInfo(address nft, uint256 tokenId) external view returns (address seller, uint256 price, uint256 amount, bool isActive)", "function listedAmount(address nft, uint256 tokenId) external view returns (uint256)"];
 
-// ERC1155 ABI
 const ERC1155_ABI = ["function isApprovedForAll(address owner, address operator) external view returns (bool)", "function setApprovalForAll(address operator, bool approved) external", "function balanceOf(address account, uint256 id) external view returns (uint256)"];
 
 export default function NFTMarketplace() {
   const { wallet } = useWallet();
   const [nfts, setNfts] = useState<NFT[]>([]);
   const [listings, setListings] = useState<Record<string, Listing>>({});
+  const [listedAmounts, setListedAmounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null);
   const [sortBy, setSortBy] = useState<"recent" | "price">("recent");
@@ -48,11 +47,22 @@ export default function NFTMarketplace() {
       setNfts(userNFTs);
 
       const listingsMap: Record<string, Listing> = {};
+      const listedAmountsMap: Record<string, number> = {};
+
       for (const nft of userNFTs) {
         try {
           const listing = await getListingByNFT(nft.contractAddress, nft.tokenId);
           if (listing) {
-            listingsMap[`${nft.contractAddress}-${nft.tokenId}`] = listing;
+            const key = `${nft.contractAddress}-${nft.tokenId}`;
+            listingsMap[key] = listing;
+
+            // Get listed amount from blockchain
+            if (window.ethereum) {
+              const provider = new ethers.BrowserProvider(window.ethereum);
+              const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
+              const amount = await marketplace.listedAmount(nft.contractAddress, nft.tokenId);
+              listedAmountsMap[key] = Number(amount);
+            }
           }
         } catch (err) {
           console.warn("Listing 조회 실패:", nft.contractAddress, nft.tokenId, err);
@@ -60,6 +70,7 @@ export default function NFTMarketplace() {
       }
 
       setListings(listingsMap);
+      setListedAmounts(listedAmountsMap);
     } catch (error: any) {
       console.error("NFT 로드 실패:", error);
       toast.error(error?.message || "NFT를 불러오는데 실패했습니다");
@@ -68,7 +79,7 @@ export default function NFTMarketplace() {
     }
   };
 
-  const handleListNFT = async (listingData: { price: string }) => {
+  const handleListNFT = async (listingData: { price: string; amount: number }) => {
     if (!selectedNFT || !wallet?.address || !window.ethereum) return;
 
     try {
@@ -78,13 +89,13 @@ export default function NFTMarketplace() {
       const nftAddress = selectedNFT.contractAddress;
       const tokenId = selectedNFT.tokenId;
       const priceInWei = ethers.parseEther(listingData.price);
+      const amount = listingData.amount;
 
-      console.log("등록 요청:", { nftAddress, tokenId, priceInWei: priceInWei.toString() });
+      console.log("등록 요청:", { nftAddress, tokenId, priceInWei: priceInWei.toString(), amount });
 
-      // ERC1155 컨트랙트
       const nft1155 = new ethers.Contract(nftAddress, ERC1155_ABI, signer);
 
-      // 1️⃣ Approval 체크 및 설정
+      // 1️⃣ Approval
       toast.info("NFT 권한 확인 중...");
       const isApproved = await nft1155.isApprovedForAll(wallet.address, MARKETPLACE_ADDRESS);
 
@@ -94,21 +105,19 @@ export default function NFTMarketplace() {
         toast.info("승인 트랜잭션 대기 중...");
         await approveTx.wait();
         toast.success("✅ 마켓플레이스 승인 완료!");
-      } else {
-        toast.info("✅ 이미 승인되어 있습니다");
       }
 
-      // 2️⃣ 마켓플레이스에 NFT 등록
+      // 2️⃣ List with amount
       const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
 
-      toast.info("NFT 등록 중... (MetaMask 확인)");
-      const listTx = await marketplace.list(nftAddress, tokenId, priceInWei);
+      toast.info(`NFT ${amount}개 등록 중...`);
+      const listTx = await marketplace.list(nftAddress, tokenId, priceInWei, amount);
       toast.info("등록 트랜잭션 대기 중...");
       const receipt = await listTx.wait();
 
       toast.success("🎉 블록체인 등록 완료!");
 
-      // 3️⃣ Supabase에 기록
+      // 3️⃣ Supabase
       toast.info("데이터베이스 저장 중...");
 
       const newListing = await createListing({
@@ -137,29 +146,56 @@ export default function NFTMarketplace() {
 
       toast.success("✅ NFT 등록 완료!");
       setSelectedNFT(null);
-
-      // NFT 목록 새로고침
       await loadNFTs();
     } catch (error: any) {
       console.error("등록 실패:", error);
-
       let errorMsg = "등록에 실패했습니다";
-
       if (error.code === "ACTION_REJECTED") {
         errorMsg = "사용자가 트랜잭션을 거부했습니다";
-      } else if (error.message?.includes("Already listed")) {
-        errorMsg = "이미 등록된 NFT입니다";
-      } else if (error.message?.includes("Insufficient balance")) {
-        errorMsg = "NFT 잔액이 부족합니다";
-      } else if (error.message?.includes("Marketplace not approved")) {
-        errorMsg = "마켓플레이스 승인이 필요합니다";
-      } else if (error.reason) {
-        errorMsg = error.reason;
       } else if (error.message) {
         errorMsg = error.message;
       }
-
       toast.error(errorMsg);
+    }
+  };
+
+  const handleCancelListing = async (nft: NFT, amount: number) => {
+    if (!wallet?.address || !window.ethereum) return;
+
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
+
+      toast.info(`${amount}개 취소 중...`);
+      const tx = await marketplace.cancel(nft.contractAddress, nft.tokenId, amount);
+      await tx.wait();
+
+      toast.success("✅ 취소 완료!");
+      await loadNFTs();
+    } catch (error: any) {
+      console.error("취소 실패:", error);
+      toast.error(error.message || "취소에 실패했습니다");
+    }
+  };
+
+  const handleCancelAll = async (nft: NFT) => {
+    if (!wallet?.address || !window.ethereum) return;
+
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
+
+      toast.info("전체 취소 중...");
+      const tx = await marketplace.cancelAll(nft.contractAddress, nft.tokenId);
+      await tx.wait();
+
+      toast.success("✅ 전체 취소 완료!");
+      await loadNFTs();
+    } catch (error: any) {
+      console.error("취소 실패:", error);
+      toast.error(error.message || "취소에 실패했습니다");
     }
   };
 
@@ -179,7 +215,6 @@ export default function NFTMarketplace() {
           <div className="text-6xl mb-4">🔒</div>
           <h1 className="text-3xl font-bold text-white mb-4">NFT Marketplace</h1>
           <p className="text-zinc-400 mb-6">NFT를 보려면 먼저 지갑을 연결해주세요</p>
-          <p className="text-sm text-zinc-500">Swap 페이지에서 지갑을 연결할 수 있습니다</p>
         </div>
       </div>
     );
@@ -190,14 +225,18 @@ export default function NFTMarketplace() {
       <ToastContainer position="top-right" autoClose={3000} theme="dark" toastStyle={{ marginTop: "80px" }} />
 
       <div className="max-w-7xl mx-auto">
-        <p className="text-3xl font-bold mb-6 mt-20 text-center">🎨 NFT Marketplace</p>
+        <div className="flex items-center justify-between mb-6 mt-20">
+          <p className="text-3xl font-bold">🎨 My NFTs</p>
+          <Link href="/market/buy">
+            <button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-6 py-3 rounded-lg font-semibold transition transform hover:scale-105 shadow-lg">🛒 마켓플레이스 보러가기</button>
+          </Link>
+        </div>
 
         <div className="mb-6 p-4 bg-zinc-800 rounded-lg">
           <p className="text-sm text-zinc-400">연결된 지갑</p>
           <p className="font-mono text-blue-400">
             {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
           </p>
-          <p className="text-xs text-zinc-500 mt-1">지갑 타입: {wallet.type === "metamask" ? "MetaMask" : "Wepin"}</p>
         </div>
 
         <div className="flex items-center justify-between mb-6">
@@ -224,9 +263,10 @@ export default function NFTMarketplace() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-            {sortedNFTs.map((nft) => (
-              <NFTCard key={`${nft.contractAddress}-${nft.tokenId}`} nft={nft} listing={listings[`${nft.contractAddress}-${nft.tokenId}`]} onList={() => setSelectedNFT(nft)} />
-            ))}
+            {sortedNFTs.map((nft) => {
+              const key = `${nft.contractAddress}-${nft.tokenId}`;
+              return <NFTCard key={key} nft={nft} listing={listings[key]} listedAmount={listedAmounts[key] || 0} onList={() => setSelectedNFT(nft)} onCancel={(amount) => handleCancelListing(nft, amount)} onCancelAll={() => handleCancelAll(nft)} />;
+            })}
           </div>
         )}
       </div>
@@ -236,22 +276,43 @@ export default function NFTMarketplace() {
   );
 }
 
-function NFTCard({ nft, listing, onList }: { nft: NFT; listing?: Listing; onList: () => void }) {
+function NFTCard({ nft, listing, listedAmount, onList, onCancel, onCancelAll }: { nft: NFT; listing?: Listing; listedAmount: number; onList: () => void; onCancel: (amount: number) => void; onCancelAll: () => void }) {
+  const [cancelAmount, setCancelAmount] = useState(1);
+  const totalBalance = parseInt(nft.balance || "1");
+  const availableToList = totalBalance + listedAmount;
+
   return (
     <div className="bg-zinc-800 rounded-lg overflow-hidden hover:shadow-xl transition duration-200">
       <div className="relative aspect-square bg-zinc-700">
         <Image src={nft.image} alt={nft.name} fill className="object-cover" unoptimized />
-        {nft.tokenType === "ERC1155" && nft.balance && <div className="absolute top-2 right-2 bg-purple-600 text-white px-2 py-1 rounded text-xs">x{nft.balance}</div>}
+        {nft.tokenType === "ERC1155" && <div className="absolute top-2 right-2 bg-purple-600 text-white px-2 py-1 rounded text-xs">보유: {totalBalance}개</div>}
+        {listing && listedAmount > 0 && <div className="absolute top-2 left-2 bg-green-600 text-white px-2 py-1 rounded text-xs">판매: {listedAmount}개</div>}
       </div>
 
       <div className="p-4">
         <h3 className="font-semibold text-lg mb-1 truncate">{nft.name}</h3>
         <p className="text-zinc-400 text-xs mb-3 truncate">{nft.description || "No description"}</p>
 
-        {listing ? (
-          <div className="bg-green-600/20 border border-green-600 rounded px-3 py-2">
-            <p className="text-green-400 text-sm">판매 중</p>
-            <p className="text-white font-bold">{(parseInt(listing.price || "0") / 1e18).toFixed(4)} ETH</p>
+        {listing && listedAmount > 0 ? (
+          <div className="space-y-2">
+            <div className="bg-green-600/20 border border-green-600 rounded px-3 py-2">
+              <p className="text-green-400 text-sm">판매 중 ({listedAmount}개)</p>
+              <p className="text-white font-bold">{(parseInt(listing.price || "0") / 1e18).toFixed(4)} ETH</p>
+            </div>
+            <div className="flex gap-2 items-center">
+              <input type="number" min="1" max={listedAmount} value={cancelAmount} onChange={(e) => setCancelAmount(Math.min(parseInt(e.target.value) || 1, listedAmount))} className="w-16 bg-zinc-700 border border-zinc-600 rounded px-2 py-1 text-sm" />
+              <button onClick={() => onCancel(cancelAmount)} className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-1 rounded text-sm">
+                취소
+              </button>
+            </div>
+            <button onClick={onCancelAll} className="w-full bg-red-600 hover:bg-red-700 text-white py-1 rounded text-sm">
+              전체 취소
+            </button>
+            {totalBalance > 0 && (
+              <button onClick={onList} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-1 rounded text-sm">
+                추가 등록 ({totalBalance}개 가능)
+              </button>
+            )}
           </div>
         ) : (
           <button onClick={onList} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded font-medium transition">
@@ -263,11 +324,32 @@ function NFTCard({ nft, listing, onList }: { nft: NFT; listing?: Listing; onList
   );
 }
 
-function ListModal({ nft, onClose, onSubmit }: { nft: NFT; onClose: () => void; onSubmit: (data: { price: string }) => void }) {
+function ListModal({ nft, onClose, onSubmit }: { nft: NFT; onClose: () => void; onSubmit: (data: { price: string; amount: number }) => void }) {
   const [price, setPrice] = useState("");
+  const [amount, setAmount] = useState(1);
   const [loading, setLoading] = useState(false);
 
+  const maxAmount = parseInt(nft.balance || "1");
+
   const handleSubmit = async () => {
+    if (!price || parseFloat(price) <= 0) {
+      toast.error("올바른 가격을 입력하세요");
+      return;
+    }
+    if (amount <= 0 || amount > maxAmount) {
+      toast.error(`수량은 1~${maxAmount} 사이여야 합니다`);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await onSubmit({ price, amount });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleListAll = async () => {
     if (!price || parseFloat(price) <= 0) {
       toast.error("올바른 가격을 입력하세요");
       return;
@@ -275,7 +357,7 @@ function ListModal({ nft, onClose, onSubmit }: { nft: NFT; onClose: () => void; 
 
     setLoading(true);
     try {
-      await onSubmit({ price });
+      await onSubmit({ price, amount: maxAmount });
     } finally {
       setLoading(false);
     }
@@ -298,18 +380,28 @@ function ListModal({ nft, onClose, onSubmit }: { nft: NFT; onClose: () => void; 
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-2">판매 가격 (ETH)</label>
+            <label className="block text-sm font-medium mb-2">판매 가격 (ETH/개)</label>
             <input type="number" step="0.001" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-2 text-white" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">수량 (최대: {maxAmount})</label>
+            <input type="number" min="1" max={maxAmount} value={amount} onChange={(e) => setAmount(Math.min(parseInt(e.target.value) || 1, maxAmount))} className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-2 text-white" />
           </div>
 
           <div className="bg-blue-600/20 border border-blue-600 rounded p-3">
             <p className="text-blue-400 text-sm">ℹ️ NFT가 마켓플레이스로 전송됩니다</p>
-            <p className="text-zinc-400 text-xs mt-1">구매자가 구매하면 자동으로 전송됩니다</p>
+            <p className="text-zinc-400 text-xs mt-1">총 가격: {(parseFloat(price || "0") * amount).toFixed(4)} ETH</p>
           </div>
 
-          <button onClick={handleSubmit} disabled={!price || loading} className="w-full bg-green-600 hover:bg-green-700 disabled:bg-zinc-600 text-white py-3 rounded font-medium transition">
-            {loading ? "처리 중..." : "등록하기"}
-          </button>
+          <div className="flex gap-2">
+            <button onClick={handleSubmit} disabled={!price || loading} className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-zinc-600 text-white py-3 rounded font-medium transition">
+              {loading ? "처리 중..." : `${amount}개 등록`}
+            </button>
+            <button onClick={handleListAll} disabled={!price || loading} className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-zinc-600 text-white py-3 rounded font-medium transition">
+              {loading ? "처리 중..." : "전체 등록"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
