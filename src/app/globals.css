@@ -109,10 +109,3 @@ body {
   background-image: url("/Mainpage/era/arrow-left-hover.png") !important;
   transform: translateY(-50%) scale(1.2) !important;
 }
-
-html,
-body {
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-}

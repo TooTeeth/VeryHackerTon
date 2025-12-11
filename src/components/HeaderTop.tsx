@@ -1,12 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import WalletButton from "./WModal/WalletButton";
 import ThemeToggle from "./DarkMode/ThemeToggle";
 import { baloo } from "../styles/font";
-import { IoChevronDownCircleOutline, IoChevronUpCircleOutline } from "react-icons/io5";
 
 export default function Headertop() {
   // const [isOpen, setIsOpen] = useState(true);
