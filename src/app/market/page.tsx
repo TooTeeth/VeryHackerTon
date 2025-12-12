@@ -549,7 +549,7 @@ export default function IntegratedMarketplace() {
         </div>
       </nav>
 
-      <div className="  ">
+      <div>
         <div>
           {/* Hero Section with Top NFTs */}
           {viewMode === "marketplace" && topNFTs.length > 0 && (
@@ -572,13 +572,12 @@ export default function IntegratedMarketplace() {
               <div className="relative z-10">
                 <div className="text-center mb-12 mt-10 pt-8">
                   <h2 className="text-6xl font-black mb-4">
-                    <span className="text-white">UNIQUE COLLECTION</span>
+                    <span className="text-white"> MYTHIC COLLECTION</span>
                     <br />
                     <span className="text-white">OF </span>
                     <span className="bg-gradient-to-r from-[#8b5cf6] via-[#ec4899] to-[#06b6d4] bg-clip-text text-transparent">NFT</span>
-                    <span className="bg-gradient-to-r from-[#ec4899] to-[#06b6d4] bg-clip-text text-transparent"> ARTS</span>
+                    <span className="bg-gradient-to-r from-[#ec4899] to-[#06b6d4] bg-clip-text text-transparent"> ITEMS</span>
                   </h2>
-                  <p className="text-gray-400 text-lg">The largest collection of nft-arts among all marketplaces</p>
                 </div>
 
                 {/* Top 5 NFTs Showcase */}
@@ -650,7 +649,7 @@ export default function IntegratedMarketplace() {
 
                                   <p className="font-bold text-xl">
                                     <span className="text-white">{(parseInt(nft.price || "0") / 1e18).toFixed(2)}</span>
-                                    <span className="text-yellow-500 ml-1">ETH</span>
+                                    <span className="text-yellow-500 ml-1">Very</span>
                                   </p>
                                 </div>
 
@@ -838,7 +837,7 @@ function MyNFTCard({ nft, wallet, listing, listedAmount, onList, onCancel, onDet
               <div className="flex justify-between items-center">
                 <div>
                   <div className="text-gray-400 text-xs mb-1">Current Bid</div>
-                  <div className="text-white font-bold text-lg">{(parseInt(listing.price || "0") / 1e18).toFixed(2)} ETH</div>
+                  <div className="text-white font-bold text-lg">{(parseInt(listing.price || "0") / 1e18).toFixed(2)} Very</div>
                 </div>
               </div>
             </div>
@@ -961,7 +960,7 @@ function MarketNFTCard({ listing, onBuy, onCancel, onDetail, isOwner }: { listin
             <div className="flex justify-between items-center">
               <div>
                 <div className="text-gray-400 text-xs mb-1">Current Bid</div>
-                <div className="text-white font-bold text-lg">{priceInEth} ETH</div>
+                <div className="text-white font-bold text-lg">{priceInEth} Very</div>
               </div>
             </div>
           </div>
@@ -1044,7 +1043,7 @@ function DetailModal({ nft, onClose, wallet, onBuy }: { nft: NFT | MarketNFT; on
               {isMarketNFT && price && (
                 <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-2xl p-6 mb-6">
                   <p className="text-green-400 text-sm font-semibold mb-2">Current Price</p>
-                  <p className="text-white text-5xl font-black mb-4">{(parseInt(price) / 1e18).toFixed(4)} ETH</p>
+                  <p className="text-white text-5xl font-black mb-4">{(parseInt(price) / 1e18).toFixed(4)} Very</p>
 
                   {wallet?.address?.toLowerCase() !== sellerAddress?.toLowerCase() && (
                     <button
@@ -1109,7 +1108,7 @@ function ListModal({ nft, onClose, onSubmit }: { nft: NFT; onClose: () => void; 
 
           <div className="space-y-5">
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-3">Price (ETH)</label>
+              <label className="block text-sm font-bold text-gray-300 mb-3">Price (Very)</label>
               <input type="number" step="0.001" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 text-white text-lg focus:outline-none focus:border-purple-500/50" />
             </div>
 
@@ -1119,7 +1118,7 @@ function ListModal({ nft, onClose, onSubmit }: { nft: NFT; onClose: () => void; 
             </div>
 
             <button onClick={handleSubmit} disabled={!price || loading} className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-4 rounded-xl font-bold disabled:opacity-50 hover:scale-105 transition-all">
-              {loading ? "Listing..." : `List for ${(parseFloat(price || "0") * amount).toFixed(4)} ETH`}
+              {loading ? "Listing..." : `List for ${(parseFloat(price || "0") * amount).toFixed(4)} Very`}
             </button>
           </div>
         </div>
@@ -1173,7 +1172,7 @@ function BuyModal({ listing, onClose, onBuy }: { listing: MarketNFT; onClose: ()
 
             <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-xl p-5">
               <p className="text-green-400 text-sm font-bold mb-2">Total Payment</p>
-              <p className="text-white text-4xl font-black">{totalPrice.toFixed(4)} ETH</p>
+              <p className="text-white text-4xl font-black">{totalPrice.toFixed(4)} Very</p>
             </div>
 
             <button onClick={handleSubmit} disabled={loading} className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-4 rounded-xl font-bold text-lg disabled:opacity-50 hover:scale-105 transition-all">
