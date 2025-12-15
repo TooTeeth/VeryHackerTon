@@ -419,6 +419,16 @@ export default function IntegratedMarketplace() {
         transaction_hash: receipt.hash,
         transaction_type: "buy",
       });
+      await createTransaction({
+        listing_id: listing.id,
+        contract_address: listing.contract_address,
+        token_id: listing.token_id,
+        from_address: listing.seller_address, // 판매자가
+        to_address: wallet.address, // 구매자에게
+        price: listing.price || "0",
+        transaction_hash: receipt.hash + "_sell", // 중복 방지
+        transaction_type: "sell", // ✅ sell 타입
+      });
 
       const remainingAmount = await marketplace.getListedAmount(listing.contract_address, listing.token_id, listing.seller_address);
 
