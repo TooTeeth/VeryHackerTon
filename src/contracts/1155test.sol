@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
+/*0x1c1852FF164e169fFE759075384060BD26183724 */
+
 contract MySimpleERC1155 {
     // Operator approvals: owner => operator => approved
     mapping(address => mapping(address => bool)) private _operatorApprovals;

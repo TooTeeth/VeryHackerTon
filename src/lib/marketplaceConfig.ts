@@ -1,10 +1,11 @@
 // lib/marketplaceConfig.ts
 
-export const MARKETPLACE_ADDRESS = "0xe7ab0d36191aF4f5d9ACD98210544fAC48A09eC1";
+export const MARKETPLACE_ADDRESS = "0x62CcC999E33B698E4EDb89A415C9FDa4f1203BDA";
 
-export const MARKETPLACE_ABI = ["function list(address nft, uint256 tokenId, uint256 price, uint256 amount) external", "function buy(address nft, uint256 tokenId, uint256 amount) external payable", "function cancel(address nft, uint256 tokenId, uint256 amount) external", "function cancelAll(address nft, uint256 tokenId) external", "function getInfo(address nft, uint256 tokenId) external view returns (address seller, uint256 price, uint256 amount, bool isActive)", "function listedAmount(address nft, uint256 tokenId) external view returns (uint256)"];
+// ✅ seller 파라미터를 포함한 ABI
+export const MARKETPLACE_ABI = ["function list(address nft, uint256 tokenId, uint256 salePrice, uint256 amount) external", "function buy(address nft, uint256 tokenId, address seller, uint256 amount) external payable", "function cancel(address nft, uint256 tokenId, uint256 amount) external", "function getListedAmount(address nft, uint256 tokenId, address seller) external view returns (uint256)", "function getListingInfo(address nft, uint256 tokenId, address seller) external view returns (uint256 pricePerUnit, uint256 amount, bool active)", "function isListed(address nft, uint256 tokenId, address seller) external view returns (bool)", "function getPrice(address nft, uint256 tokenId, address seller) external view returns (uint256)", "function getMarketplaceBalance(address nft, uint256 tokenId) external view returns (uint256)", "function listedAmount(address, uint256, address) external view returns (uint256)", "function price(address, uint256, address) external view returns (uint256)", "function isActive(address, uint256, address) external view returns (bool)"];
 
-export const ERC1155_ABI = ["function isApprovedForAll(address owner, address operator) external view returns (bool)", "function setApprovalForAll(address operator, bool approved) external", "function balanceOf(address account, uint256 id) external view returns (uint256)"];
+export const ERC1155_ABI = ["function isApprovedForAll(address owner, address operator) external view returns (bool)", "function setApprovalForAll(address operator, bool approved) external", "function balanceOf(address account, uint256 id) external view returns (uint256)", "function uri(uint256 id) external view returns (string)"];
 
 export interface NFTContract {
   address: string;

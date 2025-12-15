@@ -7,10 +7,35 @@ import { usePathname } from "next/navigation";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { useWallet } from "../context/WalletContext";
-import { createListing, createTransaction, getActiveListings, Listing } from "../../lib/supabaseMarketplace";
+import { createListing, createTransaction, getActiveListings, Listing, updateListingStatus } from "../../lib/supabaseMarketplace";
 import { fetchUserNFTs, NFT, NFTContract } from "../../lib/nftService";
 import { ethers } from "ethers";
 import { logoutFromWepin } from "../../lib/wepin";
+import HistorySection from "../../components/Market/HistorySection";
+
+function formatWeiToEth(weiString: string): string {
+  if (!weiString || weiString === "0") return "0";
+  try {
+    return parseFloat(ethers.formatEther(weiString)).toFixed(4);
+  } catch {
+    return "0";
+  }
+}
+
+function smartFormatPrice(priceString: string): string {
+  if (!priceString || priceString === "0") return "0";
+  try {
+    const price = BigInt(priceString);
+    const WEI_THRESHOLD = BigInt("1000000000000000"); // 0.001 ETH
+
+    if (price > WEI_THRESHOLD) {
+      return parseFloat(ethers.formatEther(price)).toFixed(4);
+    }
+    return parseFloat(priceString).toFixed(4);
+  } catch {
+    return parseFloat(priceString || "0").toFixed(4);
+  }
+}
 
 const NFT_CONTRACT_LIST: NFTContract[] = [
   { address: "0x3111565FCf79fD5b47AD5fe176AaB69C86Cc73FA", type: "ERC721" },
@@ -18,9 +43,9 @@ const NFT_CONTRACT_LIST: NFTContract[] = [
   { address: "0x40E3b5A7d76B1b447A98a5287a153BBc36C1615E", type: "ERC1155" },
 ];
 
-const MARKETPLACE_ADDRESS = "0xe7ab0d36191aF4f5d9ACD98210544fAC48A09eC1";
-const MARKETPLACE_ABI = ["function list(address nft, uint256 tokenId, uint256 price, uint256 amount) external", "function buy(address nft, uint256 tokenId, uint256 amount) external payable", "function cancel(address nft, uint256 tokenId, uint256 amount) external", "function listedAmount(address nft, uint256 tokenId) external view returns (uint256)"];
-const ERC1155_ABI = ["function isApprovedForAll(address owner, address operator) external view returns (bool)", "function setApprovalForAll(address operator, bool approved) external", "function balanceOf(address account, uint256 id) external view returns (uint256)"];
+const MARKETPLACE_ADDRESS = "0x62CcC999E33B698E4EDb89A415C9FDa4f1203BDA";
+const MARKETPLACE_ABI = ["function list(address nft, uint256 tokenId, uint256 salePrice, uint256 amount) external", "function buy(address nft, uint256 tokenId, address seller, uint256 amount) external payable", "function cancel(address nft, uint256 tokenId, uint256 amount) external", "function getListedAmount(address nft, uint256 tokenId, address seller) external view returns (uint256)", "function getListingInfo(address nft, uint256 tokenId, address seller) external view returns (uint256 pricePerUnit, uint256 amount, bool active)", "function listedAmount(address, uint256, address) external view returns (uint256)", "function isActive(address, uint256, address) external view returns (bool)"];
+const ERC1155_ABI = ["function isApprovedForAll(address owner, address operator) external view returns (bool)", "function setApprovalForAll(address operator, bool approved) external", "function balanceOf(address account, uint256 id) external view returns (uint256)", "function uri(uint256 id) external view returns (string)"];
 
 type Category = "전체" | "무기" | "신발" | "장갑" | "바지" | "상의" | "망토" | "투구" | "장식구" | "칭호" | "스킬";
 const CATEGORIES: Category[] = ["전체", "무기", "신발", "장갑", "바지", "상의", "망토", "투구", "장식구", "칭호", "스킬"];
@@ -102,130 +127,98 @@ export default function IntegratedMarketplace() {
   const loadMyNFTs = async () => {
     if (!wallet?.address) return;
     setLoading(true);
+    console.log("🔄 내 NFT 로딩 시작...");
+
     try {
       const userNFTs = await fetchUserNFTs(wallet.address, NFT_CONTRACT_LIST);
       const allListings = await getActiveListings();
       const myMarketListings = allListings.filter((l) => l.seller_address.toLowerCase() === wallet.address.toLowerCase());
 
-      // 마켓플레이스에 등록된 NFT를 포함한 전체 NFT 목록 생성
-      const nftMap = new Map<string, NFT>();
+      console.log("📦 지갑의 NFT:", userNFTs.length, "개");
+      console.log("📝 내 마켓 리스팅:", myMarketListings.length, "개");
 
-      // 1. 지갑에 있는 NFT 추가
+      const nftMap = new Map<string, NFT>();
       userNFTs.forEach((nft) => {
         const key = `${nft.contractAddress}-${nft.tokenId}`;
-        nftMap.set(key, nft);
-      });
-
-      // 2. 마켓플레이스에 등록된 내 NFT 추가 (balance가 0이어도)
-      for (const listing of myMarketListings) {
-        const key = `${listing.contract_address}-${listing.token_id}`;
-        if (!nftMap.has(key)) {
-          // 메타데이터 가져오기
-          let metadata = {
-            name: `NFT #${listing.token_id}`,
-            description: "Epic item for your adventure",
-            image: "/nft-placeholder.png",
-          };
-
-          try {
-            if (window.ethereum) {
-              const provider = new ethers.BrowserProvider(window.ethereum);
-              const ERC1155_METADATA_ABI = ["function uri(uint256 tokenId) external view returns (string memory)"];
-              const nftContract = new ethers.Contract(listing.contract_address, ERC1155_METADATA_ABI, provider);
-              let tokenURI = await nftContract.uri(listing.token_id);
-              if (tokenURI.startsWith("ipfs://")) {
-                tokenURI = tokenURI.replace("ipfs://", "https://ipfs.io/ipfs/");
-              }
-              const response = await fetch(tokenURI);
-              const metadataJson = await response.json();
-              let imageUrl = metadataJson.image || "/nft-placeholder.png";
-              if (imageUrl.startsWith("ipfs://")) {
-                imageUrl = imageUrl.replace("ipfs://", "https://ipfs.io/ipfs/");
-              }
-              metadata = {
-                name: metadataJson.name || `NFT #${listing.token_id}`,
-                description: metadataJson.description || "Epic item for your adventure",
-                image: imageUrl,
-              };
-            }
-          } catch (metadataError) {
-            console.warn(`메타데이터 로드 실패 (${listing.contract_address}-${listing.token_id}):`, metadataError);
-          }
-
-          // 이미 userNFTs에 없으면 마켓플레이스 listing에서 생성
-          nftMap.set(key, {
-            contractAddress: listing.contract_address,
-            tokenId: listing.token_id,
-            name: metadata.name,
-            description: metadata.description,
-            image: metadata.image,
-            balance: "0",
-            tokenType: "ERC1155" as "ERC721" | "ERC1155",
-          } as NFT);
+        const balance = nft.balance ? parseInt(nft.balance) : 0;
+        if (balance > 0) {
+          nftMap.set(key, nft);
         }
-      }
+      });
 
       setMyNFTs(Array.from(nftMap.values()));
 
       const listingsMap: Record<string, Listing> = {};
       const listedAmountsMap: Record<string, number> = {};
 
-      for (const nft of Array.from(nftMap.values())) {
-        try {
-          const listing = myMarketListings.find((l) => l.contract_address === nft.contractAddress && l.token_id === nft.tokenId);
-          if (listing) {
-            const key = `${nft.contractAddress}-${nft.tokenId}`;
-            listingsMap[key] = listing;
-            if (window.ethereum) {
-              const provider = new ethers.BrowserProvider(window.ethereum);
-              const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
-              const amount = await marketplace.listedAmount(nft.contractAddress, nft.tokenId);
-              listedAmountsMap[key] = Number(amount);
+      // ✅ 온체인에서 seller별 실제 리스팅 수량 확인
+      if (window.ethereum) {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
+
+        for (const listing of myMarketListings) {
+          try {
+            const key = `${listing.contract_address}-${listing.token_id}`;
+            const amount = await marketplace.getListedAmount(listing.contract_address, listing.token_id, wallet.address);
+            const onChainAmount = Number(amount);
+
+            if (onChainAmount > 0) {
+              listingsMap[key] = listing;
+              listedAmountsMap[key] = onChainAmount;
+              console.log(`NFT #${listing.token_id}: ${onChainAmount}개 리스팅됨`);
+            } else if (listing.id && listing.status === "active") {
+              // 온체인에 없으면 Supabase 상태 업데이트
+              console.log(`NFT #${listing.token_id}: 온체인에 없음, 상태 업데이트`);
+              await updateListingStatus(listing.id, "cancelled");
             }
+          } catch (err) {
+            console.warn("온체인 수량 조회 실패:", listing.token_id, err);
           }
-        } catch (err) {
-          console.warn("Listing 조회 실패:", nft.contractAddress, nft.tokenId, err);
         }
       }
+
       setMyListings(listingsMap);
       setListedAmounts(listedAmountsMap);
     } catch (error: any) {
-      console.error("NFT 로드 실패:", error);
+      console.error("❌ NFT 로드 실패:", error);
       toast.error(error?.message || "NFT를 불러오는데 실패했습니다");
     } finally {
       setLoading(false);
     }
   };
-
   const loadMarketplace = async () => {
     setLoading(true);
     try {
       const activeListings = await getActiveListings();
-      const uniqueListingsMap = new Map<string, Listing>();
-      activeListings.forEach((listing) => {
-        const key = `${listing.contract_address}-${listing.token_id}`;
-        if (!uniqueListingsMap.has(key)) {
-          uniqueListingsMap.set(key, listing);
-        } else {
-          const existing = uniqueListingsMap.get(key)!;
-          if (new Date(listing.created_at || 0) > new Date(existing.created_at || 0)) {
-            uniqueListingsMap.set(key, listing);
-          }
-        }
-      });
-      const uniqueListings = Array.from(uniqueListingsMap.values());
+      console.log("📊 Supabase active 리스팅:", activeListings.length, "개");
+      console.log("📋 상세 리스팅 데이터:", activeListings);
 
+      if (!window.ethereum) {
+        console.error("❌ Ethereum provider not found");
+        toast.error("MetaMask를 설치해주세요");
+        return;
+      }
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
+
+      // seller별로 중복 제거하지 않고 모든 리스팅 처리
       const listingsWithData = await Promise.all(
-        uniqueListings.map(async (listing) => {
+        activeListings.map(async (listing) => {
           try {
             let listedAmount = 0;
-            if (window.ethereum) {
-              const provider = new ethers.BrowserProvider(window.ethereum);
-              const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
-              const amount = await marketplace.listedAmount(listing.contract_address, listing.token_id);
+
+            // ✅ 온체인에서 seller별 수량 확인
+            try {
+              const amount = await marketplace.getListedAmount(listing.contract_address, listing.token_id, listing.seller_address);
               listedAmount = Number(amount);
+              console.log(`✅ NFT #${listing.token_id} by ${listing.seller_address.slice(0, 8)}... = ${listedAmount}개`);
+            } catch (amountError) {
+              console.error(`❌ listedAmount 조회 실패:`, listing.token_id, amountError);
+              listedAmount = 0;
             }
 
+            // 메타데이터 로드
             let metadata = {
               name: `NFT #${listing.token_id}`,
               description: "Epic item for your adventure",
@@ -234,34 +227,35 @@ export default function IntegratedMarketplace() {
             };
 
             try {
-              if (window.ethereum) {
-                const provider = new ethers.BrowserProvider(window.ethereum);
-                const ERC1155_METADATA_ABI = ["function uri(uint256 tokenId) external view returns (string memory)"];
-                const nftContract = new ethers.Contract(listing.contract_address, ERC1155_METADATA_ABI, provider);
-                let tokenURI = await nftContract.uri(listing.token_id);
-                if (tokenURI.startsWith("ipfs://")) {
-                  tokenURI = tokenURI.replace("ipfs://", "https://ipfs.io/ipfs/");
-                }
-                const response = await fetch(tokenURI);
-                const metadataJson = await response.json();
-                let imageUrl = metadataJson.image || "/nft-placeholder.png";
-                if (imageUrl.startsWith("ipfs://")) {
-                  imageUrl = imageUrl.replace("ipfs://", "https://ipfs.io/ipfs/");
-                }
-                metadata = {
-                  name: metadataJson.name || `NFT #${listing.token_id}`,
-                  description: metadataJson.description || "Epic item for your adventure",
-                  image: imageUrl,
-                  category: getCategoryFromNFT(listing.token_id),
-                };
+              const ERC1155_METADATA_ABI = ["function uri(uint256 tokenId) external view returns (string memory)"];
+              const nftContract = new ethers.Contract(listing.contract_address, ERC1155_METADATA_ABI, provider);
+              let tokenURI = await nftContract.uri(listing.token_id);
+
+              if (tokenURI.startsWith("ipfs://")) {
+                tokenURI = tokenURI.replace("ipfs://", "https://ipfs.io/ipfs/");
               }
+
+              const response = await fetch(tokenURI);
+              const metadataJson = await response.json();
+
+              let imageUrl = metadataJson.image || "/nft-placeholder.png";
+              if (imageUrl.startsWith("ipfs://")) {
+                imageUrl = imageUrl.replace("ipfs://", "https://ipfs.io/ipfs/");
+              }
+
+              metadata = {
+                name: metadataJson.name || `NFT #${listing.token_id}`,
+                description: metadataJson.description || "Epic item for your adventure",
+                image: imageUrl,
+                category: getCategoryFromNFT(listing.token_id),
+              };
             } catch (metadataError) {
-              console.warn(`메타데이터 로드 실패 (${listing.contract_address}-${listing.token_id}):`, metadataError);
+              console.warn(`⚠️ 메타데이터 로드 실패:`, listing.token_id, metadataError);
             }
 
             return { ...listing, metadata, listedAmount };
           } catch (err) {
-            console.error("리스팅 데이터 로드 실패:", err);
+            console.error("❌ 리스팅 데이터 로드 실패:", listing.id, err);
             return {
               ...listing,
               metadata: {
@@ -275,18 +269,45 @@ export default function IntegratedMarketplace() {
           }
         })
       );
-      setMarketListings(listingsWithData.filter((l) => l.listedAmount && l.listedAmount > 0));
+
+      console.log("📦 처리된 리스팅:", listingsWithData);
+
+      // 온체인 수량이 0인 리스팅을 Supabase에서 'cancelled'로 업데이트
+      const cancelledListings = listingsWithData.filter((l) => l.listedAmount === 0);
+      if (cancelledListings.length > 0) {
+        console.log(`🚫 ${cancelledListings.length}개의 취소된 리스팅 발견`);
+        for (const listing of cancelledListings) {
+          try {
+            if (listing.id && listing.status === "active") {
+              await updateListingStatus(listing.id, "cancelled");
+              console.log(`✅ Listing ${listing.id} 상태 업데이트 완료`);
+            }
+          } catch (err) {
+            console.warn("⚠️ 리스팅 상태 업데이트 실패:", listing.id, err);
+          }
+        }
+      }
+
+      // 유효한 리스팅만 표시
+      const validListings = listingsWithData.filter((l) => l.listedAmount && l.listedAmount > 0);
+      console.log(`✅ 최종 표시할 리스팅: ${validListings.length}개`);
+      console.log("📋 유효한 리스팅 상세:", validListings);
+
+      setMarketListings(validListings);
     } catch (error: any) {
-      console.error("마켓플레이스 로드 실패:", error);
+      console.error("❌ 마켓플레이스 로드 실패:", error);
+      console.error("에러 스택:", error.stack);
       toast.error("마켓플레이스를 불러오는데 실패했습니다");
     } finally {
       setLoading(false);
     }
   };
 
+  // 1️⃣ handleListNFT - listing_id 확인
   const handleListNFT = async (listingData: { price: string; amount: number }) => {
     if (!selectedNFT || !wallet?.address || !window.ethereum) return;
     const nft = selectedNFT as NFT;
+
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
@@ -294,45 +315,59 @@ export default function IntegratedMarketplace() {
       const tokenId = nft.tokenId;
       const priceInWei = ethers.parseEther(listingData.price);
       const amount = listingData.amount;
+
       const nft1155 = new ethers.Contract(nftAddress, ERC1155_ABI, signer);
       toast.info("NFT 권한 확인 중...");
       const isApproved = await nft1155.isApprovedForAll(wallet.address, MARKETPLACE_ADDRESS);
+
       if (!isApproved) {
         toast.info("마켓플레이스 승인 필요 - MetaMask 확인하세요");
         const approveTx = await nft1155.setApprovalForAll(MARKETPLACE_ADDRESS, true);
-        toast.info("승인 트랜잭션 대기 중...");
         await approveTx.wait();
         toast.success("✅ 마켓플레이스 승인 완료!");
       }
+
       const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
       toast.info(`NFT ${amount}개 등록 중...`);
       const listTx = await marketplace.list(nftAddress, tokenId, priceInWei, amount);
-      toast.info("등록 트랜잭션 대기 중...");
       const receipt = await listTx.wait();
+
       toast.success("🎉 블록체인 등록 완료!");
-      toast.info("데이터베이스 저장 중...");
-      await createListing({
+
+      // ✅ Supabase에 listing 생성
+      const createdListing = await createListing({
         contract_address: nftAddress,
         token_id: tokenId,
         seller_address: wallet.address,
         sale_type: "fixed",
         price: priceInWei.toString(),
+        amount: amount,
         status: "active",
       });
+
+      console.log("✅ Listing 생성:", createdListing);
+
+      // ✅ transaction_type: "listing" 사용
       await createTransaction({
+        listing_id: createdListing.id,
         contract_address: nftAddress,
         token_id: tokenId,
         from_address: wallet.address,
         to_address: MARKETPLACE_ADDRESS,
         price: priceInWei.toString(),
         transaction_hash: receipt.hash,
-        transaction_type: "sale",
+        transaction_type: "listing", // ✅ "listing" 사용
       });
+
+      console.log("✅ Transaction 기록 완료");
       toast.success("✅ NFT 등록 완료!");
       setSelectedNFT(null);
+
+      // ✅ 두 화면 모두 새로고침
       await loadMyNFTs();
+      await loadMarketplace();
     } catch (error: any) {
-      console.error("등록 실패:", error);
+      console.error("❌ 등록 실패:", error);
       let errorMsg = "등록에 실패했습니다";
       if (error.code === "ACTION_REJECTED") {
         errorMsg = "사용자가 트랜잭션을 거부했습니다";
@@ -349,58 +384,136 @@ export default function IntegratedMarketplace() {
       return;
     }
     const listing = selectedNFT as MarketNFT;
+
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
-      const pricePerUnit = BigInt(listing.price || "0");
-      const totalPrice = pricePerUnit * BigInt(amount);
-      toast.info(`${amount}개 구매 중...`);
-      const tx = await marketplace.buy(listing.contract_address, listing.token_id, amount, { value: totalPrice });
-      toast.info("트랜잭션 대기 중...");
-      await tx.wait();
+
+      // ✅ 가격이 이미 Wei 단위인지 확인
+      const pricePerUnitWei = BigInt(listing.price || "0");
+      const totalPriceWei = pricePerUnitWei * BigInt(amount);
+
+      console.log("=== Buy Debug Info ===");
+      console.log("NFT Contract:", listing.contract_address);
+      console.log("Token ID:", listing.token_id);
+      console.log("Seller:", listing.seller_address);
+      console.log("Amount to buy:", amount);
+      console.log("Price per unit (Wei):", pricePerUnitWei.toString());
+      console.log("Total Price (Wei):", totalPriceWei.toString());
+      console.log("Total Price (ETH):", ethers.formatEther(totalPriceWei));
+
+      toast.info(`${amount}개 구매 중... (${ethers.formatEther(totalPriceWei)} Very)`);
+
+      const tx = await marketplace.buy(listing.contract_address, listing.token_id, listing.seller_address, amount, { value: totalPriceWei });
+
+      const receipt = await tx.wait();
+
+      await createTransaction({
+        listing_id: listing.id,
+        contract_address: listing.contract_address,
+        token_id: listing.token_id,
+        from_address: MARKETPLACE_ADDRESS,
+        to_address: wallet.address,
+        price: pricePerUnitWei.toString(), // ✅ Wei 단위로 저장
+        transaction_hash: receipt.hash,
+        transaction_type: "buy",
+      });
+
+      const remainingAmount = await marketplace.getListedAmount(listing.contract_address, listing.token_id, listing.seller_address);
+
+      if (listing.id && Number(remainingAmount) === 0) {
+        await updateListingStatus(listing.id, "sold");
+      }
+
       toast.success("🎉 구매 완료!");
       setSelectedNFT(null);
       await loadMarketplace();
     } catch (error: any) {
-      console.error("구매 실패:", error);
+      console.error("❌ 구매 실패:", error);
+
       let errorMsg = "구매에 실패했습니다";
       if (error.code === "ACTION_REJECTED") {
         errorMsg = "사용자가 트랜잭션을 거부했습니다";
-      } else if (error.message?.includes("Insufficient payment")) {
-        errorMsg = "지불 금액이 부족합니다";
-      } else if (error.message?.includes("Invalid amount")) {
-        errorMsg = "잘못된 수량입니다";
+      } else if (error.reason) {
+        errorMsg = `컨트랙트 에러: ${error.reason}`;
       } else if (error.message) {
         errorMsg = error.message;
       }
+
       toast.error(errorMsg);
     }
   };
 
   const handleCancelListing = async (nft: NFT | MarketNFT, amount: number) => {
     if (!wallet?.address || !window.ethereum) return;
+
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer);
+
       const contractAddress = "contractAddress" in nft ? nft.contractAddress : nft.contract_address;
       const tokenId = "tokenId" in nft ? nft.tokenId : nft.token_id;
-      toast.info(`${amount}개 취소 중...`);
-      const tx = await marketplace.cancel(contractAddress, tokenId, amount);
-      await tx.wait();
-      toast.success("✅ 취소 완료!");
+      const listingId = "id" in nft ? nft.id : undefined;
+
+      // 온체인 수량 확인
+      const currentListedAmount = await marketplace.getListedAmount(contractAddress, tokenId, wallet.address);
+
+      const currentAmount = Number(currentListedAmount);
+      if (currentAmount === 0) {
+        toast.error("이미 취소되었거나 판매된 NFT입니다");
+        return;
+      }
+
+      // 취소할 수량 검증
+      const amountToCancel = Math.min(amount, currentAmount);
+      if (amountToCancel <= 0) {
+        toast.error("취소할 수량이 없습니다");
+        return;
+      }
+
+      toast.info(`${amountToCancel}개 취소 중...`);
+      const tx = await marketplace.cancel(contractAddress, tokenId, amountToCancel);
+      const receipt = await tx.wait();
+
+      // ✅ 취소 트랜잭션 기록
+      await createTransaction({
+        listing_id: listingId ?? null,
+        contract_address: contractAddress,
+        token_id: tokenId,
+        from_address: MARKETPLACE_ADDRESS,
+        to_address: wallet.address,
+        price: "0",
+        transaction_hash: receipt.hash,
+        transaction_type: "cancel",
+      });
+
+      // 남은 수량 확인 후 리스팅 상태 업데이트
+      const remainingAmount = await marketplace.getListedAmount(contractAddress, tokenId, wallet.address);
+
+      if (listingId && Number(remainingAmount) === 0) {
+        await updateListingStatus(listingId, "cancelled");
+      }
+
+      toast.success(`✅ ${amountToCancel}개 취소 완료!`);
+
       if (viewMode === "myNFTs") {
         await loadMyNFTs();
       } else {
         await loadMarketplace();
       }
     } catch (error: any) {
-      console.error("취소 실패:", error);
-      toast.error(error.message || "취소에 실패했습니다");
+      console.error("❌ 취소 실패:", error);
+      let errorMsg = "취소에 실패했습니다";
+      if (error.code === "ACTION_REJECTED") {
+        errorMsg = "사용자가 트랜잭션을 거부했습니다";
+      } else if (error.reason) {
+        errorMsg = error.reason;
+      }
+      toast.error(errorMsg);
     }
   };
-
   const filteredAndSortedItems =
     viewMode === "marketplace"
       ? marketListings
@@ -440,7 +553,18 @@ export default function IntegratedMarketplace() {
           });
 
   // Top 5 highest priced NFTs
-  const topNFTs = viewMode === "marketplace" ? [...marketListings].sort((a, b) => parseInt(b.price || "0") - parseInt(a.price || "0")).slice(0, 5) : [];
+  const topNFTs =
+    viewMode === "marketplace"
+      ? [...marketListings]
+          .sort((a, b) => {
+            const priceA = BigInt(a.price || "0");
+            const priceB = BigInt(b.price || "0");
+            if (priceB > priceA) return 1;
+            if (priceB < priceA) return -1;
+            return 0;
+          })
+          .slice(0, 5)
+      : [];
 
   if (!wallet) {
     return (
@@ -648,7 +772,7 @@ export default function IntegratedMarketplace() {
                                   <p className="text-xs text-gray-400">Current Bid</p>
 
                                   <p className="font-bold text-xl">
-                                    <span className="text-white">{(parseInt(nft.price || "0") / 1e18).toFixed(2)}</span>
+                                    <span className="text-white">{smartFormatPrice(nft.price || "0")}</span>
                                     <span className="text-yellow-500 ml-1">Very</span>
                                   </p>
                                 </div>
@@ -788,6 +912,13 @@ export default function IntegratedMarketplace() {
         </div>
       </div>
 
+      {/* ✅ History Section 추가 - My Collection에서만 표시 */}
+      {viewMode === "myNFTs" && wallet?.address && (
+        <div className="max-w-[1400px] mx-auto px-8 mt-8">
+          <HistorySection wallet={wallet} />
+        </div>
+      )}
+
       {selectedNFT && modalMode === "list" && <ListModal nft={selectedNFT as NFT} onClose={() => setSelectedNFT(null)} onSubmit={handleListNFT} />}
       {selectedNFT && modalMode === "buy" && <BuyModal listing={selectedNFT as MarketNFT} onClose={() => setSelectedNFT(null)} onBuy={handleBuyNFT} />}
       {selectedNFT && modalMode === "detail" && <DetailModal nft={selectedNFT} onClose={() => setSelectedNFT(null)} wallet={wallet} onBuy={() => setModalMode("buy")} />}
@@ -795,6 +926,15 @@ export default function IntegratedMarketplace() {
       <style jsx global>{`
         .perspective-1000 {
           perspective: 1000px;
+        }
+
+        /* 스크롤바 숨기기 */
+        ::-webkit-scrollbar {
+          display: none;
+        }
+        * {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
         }
       `}</style>
     </div>
@@ -805,17 +945,18 @@ function MyNFTCard({ nft, wallet, listing, listedAmount, onList, onCancel, onDet
   const [showCancelInput, setShowCancelInput] = useState(false);
   const [cancelAmount, setCancelAmount] = useState(1);
 
-  // totalBalance = 지갑에 있는 balance + 마켓플레이스에 등록된 수량
   const walletBalance = parseInt(nft.balance || "0");
   const totalBalance = walletBalance + listedAmount;
 
   const isListed = listing && listedAmount > 0;
-  const unlistedAmount = walletBalance; // 지갑에 남아있는 수량
+  const unlistedAmount = walletBalance;
   const hasPartialListing = isListed && unlistedAmount > 0;
 
+  // ✅ 가격 표시 수정
+  const displayPrice = listing?.price ? smartFormatPrice(listing.price) : "0";
+
   return (
-    <div className="group relative " onClick={onDetail}>
-      {/* 투명한 배경 카드 (더 넓게) */}
+    <div className="group relative" onClick={onDetail}>
       <div className="absolute -inset-2 bg-gradient-to-br from-purple-900/20 to-pink-900/20 rounded-lg backdrop-blur-sm"></div>
 
       <div
@@ -828,16 +969,15 @@ function MyNFTCard({ nft, wallet, listing, listedAmount, onList, onCancel, onDet
         <div className="relative h-56 overflow-hidden">
           <Image src={nft.image} alt={nft.name} fill className="object-cover transition-transform duration-700 group-hover:scale-110" unoptimized />
 
-          {/* 등록 수량 - 오른쪽 상단 */}
           {listedAmount > 0 && <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-sm text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-white/20">{listedAmount} listed</div>}
 
-          {/* 가격 정보 - 하단 오버레이 (End In 삭제) */}
           {isListed && listing && (
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-3 pt-8">
               <div className="flex justify-between items-center">
                 <div>
                   <div className="text-gray-400 text-xs mb-1">Current Bid</div>
-                  <div className="text-white font-bold text-lg">{(parseInt(listing.price || "0") / 1e18).toFixed(2)} Very</div>
+                  {/* ✅ ETH 단위로 표시 */}
+                  <div className="text-white font-bold text-lg">{displayPrice} Very</div>
                 </div>
               </div>
             </div>
@@ -937,11 +1077,12 @@ function MyNFTCard({ nft, wallet, listing, listedAmount, onList, onCancel, onDet
 }
 
 function MarketNFTCard({ listing, onBuy, onCancel, onDetail, isOwner }: { listing: MarketNFT; onBuy: () => void; onCancel: (amount: number) => void; onDetail: () => void; isOwner: boolean }) {
-  const priceInEth = (parseInt(listing.price || "0") / 1e18).toFixed(2);
+  // ✅ Wei를 ETH로 변환하여 표시
+  const priceInEth = smartFormatPrice(listing.price || "0");
 
   return (
-    <div className=" group relative m-4 " onClick={onDetail}>
-      <div className="absolute -inset-3  bg-white/15  backdrop-blur-md shadow-lg " />
+    <div className="group relative m-4" onClick={onDetail}>
+      <div className="absolute -inset-3 bg-white/15 backdrop-blur-md shadow-lg" />
       <div
         className="relative overflow-hidden transition-all duration-500 cursor-pointer border"
         style={{
@@ -949,31 +1090,38 @@ function MarketNFTCard({ listing, onBuy, onCancel, onDetail, isOwner }: { listin
           border: "none",
         }}
       >
-        <div className="relative h-56  overflow-hidden">
+        <div className="relative h-56 overflow-hidden">
           <Image src={listing.metadata?.image || "/nft-placeholder.png"} alt={listing.metadata?.name || "NFT"} fill className="object-cover transition-transform duration-700 group-hover:scale-110" unoptimized />
 
-          {/* 등록 수량 - 오른쪽 상단 */}
           {listing.listedAmount !== undefined && listing.listedAmount > 0 && <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-sm text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-white/20">{listing.listedAmount} listed</div>}
 
-          {/* 가격 정보 - 하단 오버레이  */}
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-3 pt-8">
             <div className="flex justify-between items-center">
               <div>
                 <div className="text-gray-400 text-xs mb-1">Current Bid</div>
+                {/* ✅ ETH 단위로 표시 */}
                 <div className="text-white font-bold text-lg">{priceInEth} Very</div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="p-4 bg-white/10  ">
+        <div className="p-4 bg-white/10">
           <h3 className="font-bold text-2xl text-white mb-2 truncate">{listing.metadata?.name}</h3>
           <p className="text-purple-300 text-sm mb-1">
             @{listing.seller_address.slice(0, 7)}...{listing.seller_address.slice(-5)}
           </p>
           <p className="text-gray-400 text-xs mb-3 line-clamp-1">{listing.metadata?.description}</p>
 
-          <button className="w-full bg-gradient-to-r from-pink-500 via-purple-600 to-blue-500 text-white py-3 rounded-lg text-sm font-bold hover:scale-105">Buy</button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onBuy();
+            }}
+            className="w-full bg-gradient-to-r from-pink-500 via-purple-600 to-blue-500 text-white py-3 rounded-lg text-sm font-bold hover:scale-105 transition-all"
+          >
+            Buy
+          </button>
         </div>
       </div>
     </div>
@@ -988,6 +1136,9 @@ function DetailModal({ nft, onClose, wallet, onBuy }: { nft: NFT | MarketNFT; on
   const tokenId = isMarketNFT ? (nft as MarketNFT).token_id : (nft as NFT).tokenId;
   const contractAddress = isMarketNFT ? (nft as MarketNFT).contract_address : (nft as NFT).contractAddress;
   const category = metadata && typeof metadata === "object" && "category" in metadata ? metadata.category : getCategoryFromNFT(tokenId);
+
+  // ✅ 추가: Wei를 ETH로 변환
+  const priceInEth = price ? smartFormatPrice(price) : "0";
 
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 p-4">
@@ -1043,7 +1194,8 @@ function DetailModal({ nft, onClose, wallet, onBuy }: { nft: NFT | MarketNFT; on
               {isMarketNFT && price && (
                 <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-2xl p-6 mb-6">
                   <p className="text-green-400 text-sm font-semibold mb-2">Current Price</p>
-                  <p className="text-white text-5xl font-black mb-4">{(parseInt(price) / 1e18).toFixed(4)} Very</p>
+                  {/* ✅ 변경: Number(price) → priceInEth */}
+                  <p className="text-white text-5xl font-black mb-4">{priceInEth} Very</p>
 
                   {wallet?.address?.toLowerCase() !== sellerAddress?.toLowerCase() && (
                     <button
@@ -1130,8 +1282,11 @@ function ListModal({ nft, onClose, onSubmit }: { nft: NFT; onClose: () => void; 
 function BuyModal({ listing, onClose, onBuy }: { listing: MarketNFT; onClose: () => void; onBuy: (amount: number) => void }) {
   const [amount, setAmount] = useState(1);
   const [loading, setLoading] = useState(false);
-  const pricePerUnit = parseInt(listing.price || "0") / 1e18;
-  const totalPrice = pricePerUnit * amount;
+
+  // ✅ Wei를 ETH로 변환
+  const pricePerUnitWei = BigInt(listing.price || "0");
+  const pricePerUnitEth = parseFloat(ethers.formatEther(pricePerUnitWei));
+  const totalPriceEth = pricePerUnitEth * amount;
   const maxAmount = listing.listedAmount || 1;
 
   const handleSubmit = async () => {
@@ -1170,9 +1325,26 @@ function BuyModal({ listing, onClose, onBuy }: { listing: MarketNFT; onClose: ()
               <input type="number" min="1" max={maxAmount} value={amount} onChange={(e) => setAmount(Math.min(parseInt(e.target.value) || 1, maxAmount))} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 text-white text-lg focus:outline-none focus:border-green-500/50" />
             </div>
 
+            {/* ✅ 가격 정보 상세 표시 */}
+            <div className="bg-white/5 rounded-xl p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Price per NFT</span>
+                <span className="text-white font-semibold">{pricePerUnitEth.toFixed(4)} Very</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Quantity</span>
+                <span className="text-white font-semibold">× {amount}</span>
+              </div>
+              <div className="h-px bg-white/10 my-2"></div>
+              <div className="flex justify-between">
+                <span className="text-gray-400 font-bold">Total</span>
+                <span className="text-white text-lg font-bold">{totalPriceEth.toFixed(4)} Very</span>
+              </div>
+            </div>
+
             <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-xl p-5">
               <p className="text-green-400 text-sm font-bold mb-2">Total Payment</p>
-              <p className="text-white text-4xl font-black">{totalPrice.toFixed(4)} Very</p>
+              <p className="text-white text-4xl font-black">{totalPriceEth.toFixed(4)} Very</p>
             </div>
 
             <button onClick={handleSubmit} disabled={loading} className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-4 rounded-xl font-bold text-lg disabled:opacity-50 hover:scale-105 transition-all">
