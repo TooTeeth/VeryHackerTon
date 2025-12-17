@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { getUserEvents, NFTEvent } from "../../lib/supabaseHistory";
 import { toast } from "react-toastify";
 import { ethers } from "ethers";
 import { createTransaction, updateListingStatus } from "../../lib/supabaseMarketplace";
+import { getErrorMessage } from "../../lib/error";
 
 type FilterType = "all" | "listing" | "buy" | "sell" | "cancel";
 
@@ -15,13 +16,24 @@ interface EventRow extends NFTEvent {
 const MARKETPLACE_ADDRESS = "0x62CcC999E33B698E4EDb89A415C9FDa4f1203BDA";
 const MARKETPLACE_ABI = ["function cancel(address nft, uint256 tokenId, uint256 amount) external", "function getListedAmount(address nft, uint256 tokenId, address seller) external view returns (uint256)"];
 
-export default function HistorySection({ wallet }: { wallet: any }) {
+// ✅ 블록스캔 URL 생성 함수
+const getBlockscanUrl = (txHash: string) => {
+  // _sell, _buy 등의 접미사 제거
+  const cleanHash = txHash.split("_")[0];
+  return `https://www.veryscan.io/tx/${cleanHash}`;
+};
+
+export default function HistorySection({ wallet }: { wallet: { address: string } | null }) {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [filter, setFilter] = useState<FilterType>("all");
   const [loading, setLoading] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [cancelAmount, setCancelAmount] = useState<Record<string, number>>({});
   const [showCancelModal, setShowCancelModal] = useState<EventRow | null>(null);
+
+  // ✅ 페이지네이션 상태
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const loadHistory = useCallback(async () => {
     if (!wallet?.address) return;
@@ -145,19 +157,9 @@ export default function HistorySection({ wallet }: { wallet: any }) {
 
       toast.success(`✅ ${finalCancelAmount}개 취소 완료!`);
       await loadHistory();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("❌ 취소 실패:", error);
-
-      let errorMsg = "취소에 실패했습니다";
-      if (error.code === "ACTION_REJECTED") {
-        errorMsg = "사용자가 트랜잭션을 거부했습니다";
-      } else if (error.reason) {
-        errorMsg = error.reason;
-      } else if (error.message) {
-        errorMsg = error.message;
-      }
-
-      toast.error(errorMsg);
+      toast.error(getErrorMessage(error));
     } finally {
       setCancellingId(null);
     }
@@ -167,7 +169,22 @@ export default function HistorySection({ wallet }: { wallet: any }) {
     loadHistory();
   }, [loadHistory]);
 
-  const filtered = filter === "all" ? events : events.filter((e) => e.event_type === filter);
+  // ✅ 필터링된 이벤트
+  const filtered = useMemo(() => {
+    return filter === "all" ? events : events.filter((e) => e.event_type === filter);
+  }, [events, filter]);
+
+  // ✅ 페이지네이션 계산
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginatedEvents = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filtered.slice(startIndex, startIndex + itemsPerPage);
+  }, [filtered, currentPage, itemsPerPage]);
+
+  // ✅ 필터나 itemsPerPage 변경 시 첫 페이지로
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, itemsPerPage]);
 
   const shortAddr = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
@@ -213,7 +230,7 @@ export default function HistorySection({ wallet }: { wallet: any }) {
           color: "text-blue-400",
           bgColor: "bg-blue-500/10",
           borderColor: "border-blue-500/30",
-          icon: "📋",
+
           label: "Listed",
         };
       case "buy":
@@ -221,7 +238,7 @@ export default function HistorySection({ wallet }: { wallet: any }) {
           color: "text-green-400",
           bgColor: "bg-green-500/10",
           borderColor: "border-green-500/30",
-          icon: "🛒",
+
           label: "Bought",
         };
       case "sell":
@@ -229,15 +246,15 @@ export default function HistorySection({ wallet }: { wallet: any }) {
           color: "text-yellow-400",
           bgColor: "bg-yellow-500/10",
           borderColor: "border-yellow-500/30",
-          icon: "💰",
-          label: "Sold",
+
+          label: "Sell",
         };
       case "cancel":
         return {
           color: "text-red-400",
           bgColor: "bg-red-500/10",
           borderColor: "border-red-500/30",
-          icon: "❌",
+
           label: "Canceled",
         };
       default:
@@ -245,7 +262,6 @@ export default function HistorySection({ wallet }: { wallet: any }) {
           color: "text-white",
           bgColor: "bg-white/10",
           borderColor: "border-white/10",
-          icon: "🔄",
           label: "Unknown",
         };
     }
@@ -260,12 +276,28 @@ export default function HistorySection({ wallet }: { wallet: any }) {
           <p className="text-gray-400 text-sm">Track all your NFT activities</p>
         </div>
 
-        <button onClick={loadHistory} disabled={loading} className="px-6 py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white disabled:opacity-50 flex items-center gap-2 transition-all">
-          <svg className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          {loading ? "Refreshing..." : "Refresh"}
-        </button>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <select value={itemsPerPage} onChange={(e) => setItemsPerPage(Number(e.target.value))} className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500/50 cursor-pointer">
+              <option value={10} className="bg-gray-800">
+                10
+              </option>
+              <option value={20} className="bg-gray-800">
+                20
+              </option>
+              <option value={30} className="bg-gray-800">
+                30
+              </option>
+            </select>
+          </div>
+
+          <button onClick={loadHistory} disabled={loading} className="px-6 py-3 rounded-xl text-sm font-bold bg-gradient-to-r  hover:from-purple-600 hover:to-pink-600 text-white disabled:opacity-50 flex items-center gap-2 transition-all">
+            <svg className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {loading ? "Refreshing..." : ""}
+          </button>
+        </div>
       </div>
 
       {/* Filter Tabs */}
@@ -299,79 +331,132 @@ export default function HistorySection({ wallet }: { wallet: any }) {
           <p className="text-gray-400 text-lg">No transaction history</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {filtered.map((e) => {
-            const config = eventConfig(e.event_type);
-            const remainingAmount = e.remaining_amount ?? 0;
-            // 온체인 수량이 0이면 취소/판매 완료된 것
-            const isCompleted = e.event_type === "listing" && remainingAmount === 0;
+        <>
+          <div className="space-y-3">
+            {paginatedEvents.map((e) => {
+              const config = eventConfig(e.event_type);
+              const remainingAmount = e.remaining_amount ?? 0;
+              // 온체인 수량이 0이면 취소/판매 완료된 것
+              const isCompleted = e.event_type === "listing" && remainingAmount === 0;
 
-            return (
-              <div
-                key={e.id}
-                className={`
-                  ${config.bgColor} ${config.borderColor}
-                  border rounded-2xl p-5 transition-all duration-300 hover:scale-[1.02]
-                `}
-              >
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                  {/* Event Type */}
-                  <div className="flex items-center gap-3 min-w-[140px]">
-                    <span className="text-3xl">{config.icon}</span>
-                    <div>
-                      <p className={`${config.color} font-bold text-lg`}>{config.label}</p>
-                      <p className="text-gray-500 text-xs">NFT #{e.token_id}</p>
-                      {e.event_type === "listing" && <p className="text-gray-400 text-xs">남은 수량: {remainingAmount}개</p>}
+              return (
+                <div
+                  key={e.id}
+                  className={`
+                    ${config.bgColor} ${config.borderColor}
+                    border rounded-md p-2 transition-all duration-300 
+                  `}
+                >
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    {/* Event Type */}
+                    <div className="flex items-center gap-3 min-w-[120px]">
+                      <div>
+                        <p className={`${config.color} font-bold text-lg`}>{config.label}</p>
+                        <p className="text-gray-500 text-xs">NFT #{e.token_id}</p>
+                        {e.event_type === "listing" && <p className="text-gray-400 text-xs">남은 수량: {remainingAmount}개</p>}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Address Flow */}
-                  <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-                    <div className="bg-white/5 px-3 py-1.5 rounded-lg">
-                      <p className="font-mono text-xs text-gray-400">{shortAddr(e.from_address)}</p>
+                    {/* Address Flow */}
+                    <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                      <div className="bg-white/5 px-3 py-1.5 rounded-lg">
+                        <p className="font-mono text-xs text-gray-400">{shortAddr(e.from_address)}</p>
+                      </div>
+                      <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                      <div className="bg-white/5 px-3 py-1.5 rounded-lg">
+                        <p className="font-mono text-xs text-gray-400">{shortAddr(e.to_address)}</p>
+                      </div>
                     </div>
-                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                    </svg>
-                    <div className="bg-white/5 px-3 py-1.5 rounded-lg">
-                      <p className="font-mono text-xs text-gray-400">{shortAddr(e.to_address)}</p>
+
+                    {/* Price - ✅ 개선된 가격 포맷팅 */}
+                    <div className="text-right min-w-[100px]">
+                      <p className="text-white font-bold text-sm">{formatPrice(e.price)}</p>
                     </div>
-                  </div>
 
-                  {/* Price - ✅ 개선된 가격 포맷팅 */}
-                  <div className="text-right min-w-[120px]">
-                    <p className="text-white font-bold text-lg">{formatPrice(e.price)}</p>
-                  </div>
-
-                  {/* Date */}
-                  <div className="text-right min-w-[140px]">
-                    <p className="text-gray-400 text-xs">{formatDate(e.created_at)}</p>
-                  </div>
-
-                  {/* Cancel Button - listing 이벤트만 표시 */}
-                  {e.event_type === "listing" && (
-                    <div className="min-w-[100px]">
-                      {isCompleted ? (
-                        <div className="px-4 py-2 rounded-lg bg-gray-500/20 text-gray-500 text-sm font-bold text-center">Completed</div>
-                      ) : (
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openCancelModal(e);
-                          }}
-                          disabled={cancellingId === e.id}
-                          className="px-4 py-2 rounded-lg bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                        >
-                          {cancellingId === e.id ? "Canceling..." : "Cancel"}
-                        </button>
-                      )}
+                    {/* Date */}
+                    <div className="text-right min-w-[140px]">
+                      <p className="text-gray-400 text-xs">{formatDate(e.created_at)}</p>
                     </div>
-                  )}
+
+                    {/* ✅ Blockscan Button */}
+                    <div className="min-w-[120px]">
+                      <a href={getBlockscanUrl(e.transaction_hash)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2  hover:from-cyan-600 hover:to-blue-600 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all hover:scale-105" onClick={(event) => event.stopPropagation()}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    </div>
+
+                    {/* Cancel Button - listing 이벤트만 표시 */}
+                    {e.event_type === "listing" && (
+                      <div className="min-w-[100px]">
+                        {isCompleted ? (
+                          <div className="px-4 py-2 rounded-lg bg-gray-500/20 text-gray-500 text-sm font-bold text-center">Completed</div>
+                        ) : (
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openCancelModal(e);
+                            }}
+                            disabled={cancellingId === e.id}
+                            className="px-4 py-2 rounded-lg bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                          >
+                            {cancellingId === e.id ? "Canceling..." : "Cancel"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+
+          {/* ✅ 페이지네이션 컨트롤 */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-8">
+              {/* 이전 버튼 */}
+              <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-4 py-2 rounded-lg bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+
+              {/* 페이지 번호 */}
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((page) => {
+                  // 현재 페이지 주변 2개, 첫 페이지, 마지막 페이지만 표시
+                  return page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2;
+                })
+                .map((page, idx, arr) => {
+                  // 생략 부호 표시
+                  const showEllipsis = idx > 0 && arr[idx - 1] !== page - 1;
+                  return (
+                    <div key={page} className="flex items-center">
+                      {showEllipsis && <span className="px-2 text-gray-500">...</span>}
+                      <button onClick={() => setCurrentPage(page)} className={`w-10 h-10 rounded-lg font-bold transition-all ${currentPage === page ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white" : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white"}`}>
+                        {page}
+                      </button>
+                    </div>
+                  );
+                })}
+
+              {/* 다음 버튼 */}
+              <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-4 py-2 rounded-lg bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+
+              {/* 페이지 정보 */}
+              <span className="text-gray-400 text-sm ml-4">
+                {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filtered.length)} of {filtered.length}
+              </span>
+            </div>
+          )}
+        </>
       )}
 
       {/* Cancel Modal */}
@@ -401,7 +486,7 @@ export default function HistorySection({ wallet }: { wallet: any }) {
 
             <div className="flex gap-3">
               <button onClick={() => setShowCancelModal(null)} className="flex-1 px-4 py-3 rounded-xl bg-white/5 text-gray-300 hover:bg-white/10 transition-all">
-                취소
+                닫기
               </button>
               <button onClick={() => handleCancelListing(showCancelModal, cancelAmount[showCancelModal.id] || 1)} className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-red-500 to-pink-500 text-white font-bold hover:from-red-600 hover:to-pink-600 transition-all">
                 {cancelAmount[showCancelModal.id] || 1}개 취소

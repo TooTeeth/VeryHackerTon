@@ -16,6 +16,7 @@ export interface NFTMetadata {
   description: string;
   image: string;
   attributes?: Array<{ trait_type: string; value: string | number }>;
+  category?: string;
 }
 
 export interface NFT {
@@ -27,6 +28,7 @@ export interface NFT {
   image: string;
   metadata: NFTMetadata;
   balance?: string;
+  category?: string; // ✅ 추가
 }
 
 // NFT 컨트랙트 배열 타입
@@ -59,6 +61,7 @@ export async function fetchERC721NFT(contractAddress: string, tokenId: string) {
     description: metadata.description ?? "",
     image: resolveIPFS(metadata.image),
     metadata,
+    category: metadata.category ?? "전체",
   };
 }
 
@@ -83,6 +86,7 @@ export async function fetchERC1155NFT(contractAddress: string, tokenId: string, 
     image: resolveIPFS(metadata.image),
     metadata,
     balance: balance.toString(),
+    category: metadata.category ?? "전체",
   };
 }
 
@@ -103,7 +107,7 @@ export async function fetchUserNFTs(walletAddress: string, nftContracts: NFTCont
 
             const nft = await fetchERC721NFT(address, tokenId.toString());
             results.push(nft);
-          } catch (err) {
+          } catch {
             // 존재하지 않는 tokenId면 다음으로
             continue;
           }
