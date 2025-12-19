@@ -8,7 +8,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { useWallet } from "../context/WalletContext";
 import { createListing, createTransaction, getActiveListings, Listing, updateListingStatus } from "../../lib/supabaseMarketplace";
-import { fetchUserNFTs, NFT, NFTContract } from "../../lib/nftService";
+import { fetchUserNFTs, NFT, NFTContract } from "../../services/nftService";
 import { ethers } from "ethers";
 import { logoutFromWepin } from "../../lib/wepin";
 import HistorySection from "../../components/Market/HistorySection";

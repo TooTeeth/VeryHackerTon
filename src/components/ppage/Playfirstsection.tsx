@@ -6,7 +6,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { Pagination } from "./Pagination";
 import PlatformFilter from "./GameFilter";
 
-type streamdata = {
+type StreamData = {
   id: number;
   Title: string;
   Players: number;
@@ -24,7 +24,7 @@ type Filters = {
 };
 
 export default function PlayfirstSection() {
-  const [games, setGames] = useState<streamdata[]>([]);
+  const [games, setGames] = useState<StreamData[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
@@ -60,7 +60,7 @@ export default function PlayfirstSection() {
       if (error) {
         console.error("Stream Loading Failed:", error);
       } else {
-        setGames(data);
+        setGames(data as StreamData[]);
       }
     }
 
@@ -95,19 +95,21 @@ export default function PlayfirstSection() {
       <div className="w-full flex justify-center items-center flex-col">
         <div className="relative grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 p-10 Z-1 cursor-pointer">
           {currentItems.map((game) => (
-            <GameCard
-              key={game.id}
-              variant="featured"
-              game={{
-                title: game.Title,
-                players: game.Players === 0 ? <span className="text-transparent bg-gradient-to-r from-[#f97171] to-[#8a82f6] bg-clip-text text-xl">∞</span> : `Max ${game.Players}`,
-                Era: game.Era,
-                genre: game.Genre,
-                Plan: game.Plan === 0 ? "Free" : game.Plan?.toString() ?? "Unknown",
-                image: game.Image || "/Mainpage/Very.png",
-              }}
-              showPlayButton={false}
-            />
+            <div key={game.id} onClick={() => (window.location.href = `/game/${game.id}`)} className="cursor-pointer">
+              <GameCard
+                variant="featured"
+                game={{
+                  id: game.id,
+                  title: game.Title,
+                  players: game.Players === 0 ? <span className="text-transparent bg-gradient-to-r from-[#f97171] to-[#8a82f6] bg-clip-text text-xl">∞</span> : `Max ${game.Players}`,
+                  Era: game.Era,
+                  genre: game.Genre,
+                  Plan: game.Plan === 0 ? "Free" : game.Plan?.toString() ?? "Unknown",
+                  image: game.Image || "/Mainpage/Very.png",
+                }}
+                showPlayButton={false}
+              />
+            </div>
           ))}
         </div>
 

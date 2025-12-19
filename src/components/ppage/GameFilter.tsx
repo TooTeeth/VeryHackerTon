@@ -17,12 +17,14 @@ type PlatformFilterProps = {
   onReset: () => void;
 };
 
-const platforms: {
-  key: keyof Filters;
+type PlatformOption = {
+  key: keyof Filters | null;
   label: string;
   icon?: React.ReactNode;
   subOptions: string[];
-}[] = [
+};
+
+const platforms: PlatformOption[] = [
   {
     key: "Era",
     label: "Era",
@@ -52,7 +54,12 @@ const platforms: {
 export default function PlatformFilter({ filters, onFilterChange, onReset }: PlatformFilterProps) {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
-  const allPlatform = { key: null, label: "ALL", icon: null, subOptions: [] };
+  const allPlatform: PlatformOption = {
+    key: null,
+    label: "ALL",
+    icon: undefined,
+    subOptions: [],
+  };
   const allPlatformsWithAll = [allPlatform, ...platforms];
 
   return (
@@ -80,7 +87,9 @@ export default function PlatformFilter({ filters, onFilterChange, onReset }: Pla
                 <button
                   key={option}
                   onClick={() => {
-                    onFilterChange(key as keyof Filters, option);
+                    if (key) {
+                      onFilterChange(key, option);
+                    }
                     setOpenDropdown(null);
                   }}
                   className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700 text-sm font-bold"
