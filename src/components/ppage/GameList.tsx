@@ -1,4 +1,3 @@
-import { GiLeafSwirl } from "react-icons/gi";
 import GameCard from "./GameCard";
 
 const games = [
@@ -33,13 +32,19 @@ const games = [
 
 export default function GameList() {
   return (
-    <div className="grid grid-cols-4 gap-10   sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-4 max-w-screen-2xl ">
-      {games.map((game, index) => (
-        <GameCard key={index} game={game} />
-      ))}
-      <GameCard createMode />
-      <div className="absolute bottom-0 left-1/2 z-10 transform -translate-x-1/2 -translate-y-1/2  text-white">
-        <GiLeafSwirl size={50} />
+    <div className="w-full flex justify-center">
+      <div
+        className="
+          grid
+          grid-cols-[repeat(auto-fit,minmax(320px,1fr))]
+          gap-16
+          w-full
+          max-w-[1400px]
+        "
+      >
+        {games.map((game, index) => (
+          <GameCard key={index} game={game} />
+        ))}
       </div>
     </div>
   );

@@ -17,9 +17,10 @@ type Props = {
     Plan: number;
   };
   onCreate: (data: { Title: string; Players: number; Era: string; Genre: string; Plan: number }) => void;
+  disabled?: boolean;
 };
 
-export default function CreateButton({ data, onCreate }: Props) {
+export default function CreateButton({ data, onCreate, disabled }: Props) {
   const [loading, setLoading] = useState(false);
 
   const switchToVeryChain = async () => {
@@ -137,5 +138,9 @@ export default function CreateButton({ data, onCreate }: Props) {
     }
   };
 
-  return <span onClick={sendVery}>{loading ? "Pending..." : "Create"}</span>;
+  return (
+    <button onClick={sendVery} disabled={loading || disabled} className="w-full px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg font-medium shadow-lg hover:from-pink-600 hover:to-purple-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-pink-400/50 hover:border-pink-300 hover:shadow-pink-500/50">
+      {loading ? "Pending..." : "Create"}
+    </button>
+  );
 }

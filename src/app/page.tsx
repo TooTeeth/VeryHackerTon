@@ -5,7 +5,7 @@ import VideoBackGrounds from "../components/main/VideoBackGrounds";
 export default function Home() {
   return (
     <div
-      className="hide-scrollbar"
+      className="hide-bar"
       style={{
         height: "100vh",
         overflowY: "scroll",
@@ -14,12 +14,10 @@ export default function Home() {
     >
       <section id="section1" className="relative">
         <VideoBackGrounds />
-        {/* <ScrollArrow targetId="Explain-section" /> */}
       </section>
 
       <section id="Explain-section" className="relative">
         <Explain />
-        {/* <ScrollArrow targetId="MainCard-section" /> */}
       </section>
       <section id="MainCard-section" className="relative">
         <MainCard />
