@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -12,6 +12,7 @@ import { fetchUserNFTs, NFT, NFTContract } from "../../services/nftService";
 import { ethers } from "ethers";
 import { logoutFromWepin } from "../../lib/wepin";
 import HistorySection from "../../components/Market/HistorySection";
+import { getErrorMessage } from "../../lib/error";
 
 const NFT_CONTRACT_LIST: NFTContract[] = [
   { address: "0x3111565FCf79fD5b47AD5fe176AaB69C86Cc73FA", type: "ERC721" },
@@ -114,16 +115,7 @@ export default function IntegratedMarketplace() {
 
   const isActive = (path: string) => pathname === path;
 
-  useEffect(() => {
-    if (viewMode === "myNFTs" && wallet?.address) {
-      loadMyNFTs();
-    } else if (viewMode === "marketplace") {
-      loadMarketplace();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode, wallet]);
-
-  const loadMyNFTs = async () => {
+  const loadMyNFTs = useCallback(async () => {
     if (!wallet?.address) return;
     setLoading(true);
     console.log("🔄 내 NFT 로딩 시작...");
@@ -185,9 +177,9 @@ export default function IntegratedMarketplace() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [wallet?.address]);
 
-  const loadMarketplace = async () => {
+  const loadMarketplace = useCallback(async () => {
     setLoading(true);
     console.log("🔄 마켓플레이스 로딩 시작...");
 
@@ -323,11 +315,19 @@ export default function IntegratedMarketplace() {
       console.log(`✅ 그룹화된 NFT: ${grouped.size}개`);
     } catch (error: unknown) {
       console.error("❌ 마켓플레이스 로드 실패:", error);
-      toast.error("마켓플레이스를 불러오는데 실패했습니다");
+      toast.error(getErrorMessage(error));
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (viewMode === "myNFTs" && wallet?.address) {
+      loadMyNFTs();
+    } else if (viewMode === "marketplace") {
+      loadMarketplace();
+    }
+  }, [viewMode, wallet?.address, loadMyNFTs, loadMarketplace]);
 
   const handleListNFT = async (listingData: { price: string; amount: number }) => {
     if (!selectedNFT || !wallet?.address || !window.ethereum) return;
@@ -393,8 +393,7 @@ export default function IntegratedMarketplace() {
       await loadMarketplace();
     } catch (error: unknown) {
       console.error("❌ 등록 실패:", error);
-      const errorMessage = error instanceof Error ? error.message : "등록에 실패했습니다";
-      toast.error(errorMessage);
+      toast.error(getErrorMessage(error));
     } finally {
       setIsListingPending(false);
     }
@@ -463,19 +462,7 @@ export default function IntegratedMarketplace() {
       await loadMarketplace();
     } catch (error: unknown) {
       console.error("❌ 구매 실패:", error);
-      let errorMsg = "구매에 실패했습니다";
-
-      if (error && typeof error === "object") {
-        if ("code" in error && error.code === "ACTION_REJECTED") {
-          errorMsg = "사용자가 트랜잭션을 거부했습니다";
-        } else if ("reason" in error && typeof error.reason === "string") {
-          errorMsg = error.reason;
-        } else if ("message" in error && typeof error.message === "string") {
-          errorMsg = error.message;
-        }
-      }
-
-      toast.error(errorMsg);
+      toast.error(getErrorMessage(error));
     } finally {
       setIsBuyingPending(false);
     }
@@ -531,8 +518,7 @@ export default function IntegratedMarketplace() {
       await loadMarketplace();
     } catch (error: unknown) {
       console.error("취소 실패:", error);
-      const errorMessage = error instanceof Error ? error.message : "취소에 실패했습니다";
-      toast.error(errorMessage);
+      toast.error(getErrorMessage(error));
     }
   };
 
