@@ -15,10 +15,7 @@ export const ChoiceList: React.FC<ChoiceListProps> = ({ choices, onChoiceClick }
     <ul className="space-y-2">
       {choices.map((item) => (
         <li key={item.id}>
-          <button
-            onClick={() => onChoiceClick(item.value, item.choice)}
-            className="text-bronze text-left text-lg font-bold hover:text-gray-300 transition duration-200 ease-in-out"
-          >
+          <button onClick={() => onChoiceClick(item.value, item.choice)} className="text-bronze text-left text-lg font-bold hover:text-gray-300 transition duration-200 ease-in-out">
             &gt; {item.choice}
           </button>
         </li>

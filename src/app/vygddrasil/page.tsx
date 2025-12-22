@@ -26,7 +26,8 @@ export default function VygddrasilPage() {
       return;
     }
 
-    router.push(ROUTES.VYGDDRASIL_START);
+    // Go to character select page
+    router.push("/vygddrasil/select");
   };
 
   const handleNew = () => {

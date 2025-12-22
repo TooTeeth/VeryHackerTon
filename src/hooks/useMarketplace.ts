@@ -17,7 +17,7 @@ const MARKETPLACE_ADDRESS = "0x62CcC999E33B698E4EDb89A415C9FDa4f1203BDA";
 const MARKETPLACE_ABI = ["function list(address nft, uint256 tokenId, uint256 salePrice, uint256 amount) external", "function buy(address nft, uint256 tokenId, address seller, uint256 amount) external payable", "function cancel(address nft, uint256 tokenId, uint256 amount) external", "function getListedAmount(address nft, uint256 tokenId, address seller) external view returns (uint256)", "function listedAmount(address, uint256) external view returns (uint256)", "function isActive(address, uint256) external view returns (bool)"];
 const ERC1155_ABI = ["function isApprovedForAll(address owner, address operator) external view returns (bool)", "function setApprovalForAll(address operator, bool approved) external", "function balanceOf(address account, uint256 id) external view returns (uint256)", "function uri(uint256 id) external view returns (string)"];
 
-type Category = "전체" | "무기" | "신발" | "장갑" | "바지" | "상의" | "망토" | "투구" | "장신구" | "칭호" | "스킬";
+type Category = "전체" | "무기" | "신발" | "장갑" | "바지" | "상의" | "망토" | "투구" | "장식구" | "칭호" | "스킬";
 
 interface SellerListing {
   seller_address: string;
@@ -136,13 +136,24 @@ export function useMarketplace(walletAddress?: string) {
           let listedAmount = 0;
 
           if (window.ethereum) {
-            const provider = new ethers.BrowserProvider(window.ethereum);
-            const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
-            const amount = await marketplace.getListedAmount(listing.contract_address, listing.token_id, listing.seller_address);
-            listedAmount = Number(amount);
+            try {
+              const provider = new ethers.BrowserProvider(window.ethereum);
+              const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
+              const amount = await marketplace.getListedAmount(listing.contract_address, listing.token_id, listing.seller_address);
+              listedAmount = Number(amount);
+              console.log(`✅ getListedAmount 성공 (${listing.token_id}): ${listedAmount}`);
+            } catch (amountErr) {
+              console.warn(`❌ getListedAmount 실패 (${listing.token_id}), Supabase 데이터 사용:`, amountErr);
+              // 온체인 조회 실패 시 Supabase amount 사용
+              listedAmount = listing.amount || 0;
+            }
+          } else {
+            // MetaMask 없을 때도 Supabase 데이터 사용
+            listedAmount = listing.amount || 0;
           }
 
           if (listedAmount === 0) {
+            console.log(`⚠️ 리스팅 수량 0 (${listing.token_id}), 스킵`);
             if (listing.id && listing.status === "active") {
               await updateListingStatus(listing.id, "cancelled");
             }
@@ -269,7 +280,13 @@ export function useMarketplace(walletAddress?: string) {
         const nft1155 = new ethers.Contract(nftAddress, ERC1155_ABI, signer);
 
         toast.info("NFT 권한 확인 중...");
-        const isApproved = await nft1155.isApprovedForAll(walletAddress, MARKETPLACE_ADDRESS);
+        let isApproved = false;
+        try {
+          isApproved = await nft1155.isApprovedForAll(walletAddress, MARKETPLACE_ADDRESS);
+        } catch (err) {
+          console.warn("isApprovedForAll 조회 실패, 승인 진행:", err);
+          isApproved = false; // 기본값: 승인 안됨으로 처리
+        }
 
         if (!isApproved) {
           toast.info("마켓플레이스 승인 필요 - MetaMask 확인하세요");
@@ -368,9 +385,16 @@ export function useMarketplace(walletAddress?: string) {
           transaction_type: "buy",
         });
 
-        const remainingAmount = await marketplace.getListedAmount(contractAddress, tokenId, seller.seller_address);
-        if (Number(remainingAmount) === 0 && seller.listing_id) {
-          await updateListingStatus(seller.listing_id, "sold");
+        try {
+          const remainingAmount = await marketplace.getListedAmount(contractAddress, tokenId, seller.seller_address);
+          if (Number(remainingAmount) === 0 && seller.listing_id) {
+            await updateListingStatus(seller.listing_id, "sold");
+          }
+        } catch (err) {
+          console.warn("remainingAmount 조회 실패, 리스팅 상태 sold로 업데이트:", err);
+          if (seller.listing_id) {
+            await updateListingStatus(seller.listing_id, "sold");
+          }
         }
 
         toast.success("🎉 구매 완료!");
@@ -395,7 +419,15 @@ export function useMarketplace(walletAddress?: string) {
         const contractAddress = "contractAddress" in nft ? nft.contractAddress : nft.contract_address;
         const tokenId = "tokenId" in nft ? nft.tokenId : nft.token_id;
 
-        const currentAmount = await marketplace.getListedAmount(contractAddress, tokenId, walletAddress);
+        let currentAmount = 0;
+        try {
+          const amount = await marketplace.getListedAmount(contractAddress, tokenId, walletAddress);
+          currentAmount = Number(amount);
+        } catch (err) {
+          console.warn("currentAmount 조회 실패:", err);
+          toast.error("리스팅 정보를 불러올 수 없습니다.");
+          return;
+        }
         const onChainAmount = Number(currentAmount);
 
         if (onChainAmount === 0) {
@@ -425,9 +457,16 @@ export function useMarketplace(walletAddress?: string) {
           transaction_type: "cancel",
         });
 
-        const remainingAmount = await marketplace.getListedAmount(contractAddress, tokenId, walletAddress);
-        if (Number(remainingAmount) === 0 && listing?.id) {
-          await updateListingStatus(listing.id, "cancelled");
+        try {
+          const remainingAmount = await marketplace.getListedAmount(contractAddress, tokenId, walletAddress);
+          if (Number(remainingAmount) === 0 && listing?.id) {
+            await updateListingStatus(listing.id, "cancelled");
+          }
+        } catch (err) {
+          console.warn("remainingAmount 조회 실패, 리스팅 상태 cancelled로 업데이트:", err);
+          if (listing?.id) {
+            await updateListingStatus(listing.id, "cancelled");
+          }
         }
 
         toast.success("✅ 취소 완료!");

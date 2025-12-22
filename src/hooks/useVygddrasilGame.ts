@@ -7,7 +7,10 @@ import { VygddrasilService } from "../services/vygddrasil.service";
 import { ChoiceItem, StageMeta, ChoiceHistoryItem } from "../types/vygddrasil.types";
 import { GAME_CONFIG, SPECIAL_VALUES, ROUTES, MESSAGES } from "../constants/vygddrasil.constants";
 
-export const useVygddrasilGame = (walletAddress: string | undefined) => {
+export const useVygddrasilGame = (
+  walletAddress: string | undefined,
+  characterId?: number | null // 🆕 character ID parameter
+) => {
   const router = useRouter();
 
   // Game state - ✅ string 타입으로 변경
@@ -33,7 +36,8 @@ export const useVygddrasilGame = (walletAddress: string | undefined) => {
 
     setIsLoading(true);
     try {
-      const progress = await VygddrasilService.loadProgress(walletAddress);
+      // 🆕 Load progress for specific character if characterId exists
+      const progress = await VygddrasilService.loadProgress(walletAddress, characterId || undefined);
 
       if (progress) {
         setCurrentStage(progress.current_stage);
@@ -46,7 +50,7 @@ export const useVygddrasilGame = (walletAddress: string | undefined) => {
     } finally {
       setIsLoading(false);
     }
-  }, [walletAddress]);
+  }, [walletAddress, characterId]);
 
   /**
    * Save game progress to database
@@ -64,6 +68,7 @@ export const useVygddrasilGame = (walletAddress: string | undefined) => {
         current_stage: currentStage,
         visited_stages: visitedStages,
         choices_made: choiceHistory,
+        ...(characterId && { character_id: characterId }), // 🆕 Add character_id if exists
       };
 
       const result = await VygddrasilService.saveProgress(progressData);
@@ -77,7 +82,7 @@ export const useVygddrasilGame = (walletAddress: string | undefined) => {
         toast.error(`${MESSAGES.SAVE_ERROR}: ${result.error}`);
       }
     },
-    [walletAddress, currentStage, visitedStages, choiceHistory, autoSaveEnabled]
+    [walletAddress, currentStage, visitedStages, choiceHistory, autoSaveEnabled, characterId]
   );
 
   /**
@@ -145,7 +150,8 @@ export const useVygddrasilGame = (walletAddress: string | undefined) => {
     const confirmed = window.confirm(MESSAGES.RESET_CONFIRM);
     if (!confirmed) return;
 
-    const result = await VygddrasilService.deleteProgress(walletAddress);
+    // 🆕 Delete progress for specific character
+    const result = await VygddrasilService.deleteProgress(walletAddress, characterId || undefined);
 
     if (result.success) {
       setCurrentStage(GAME_CONFIG.INITIAL_STAGE);
@@ -156,7 +162,7 @@ export const useVygddrasilGame = (walletAddress: string | undefined) => {
     } else {
       toast.error(MESSAGES.RESET_ERROR);
     }
-  }, [walletAddress]);
+  }, [walletAddress, characterId]);
 
   /**
    * Go to previous stage

@@ -16,11 +16,11 @@ export default function HeroSection({ topNFTs, onNFTClick }: HeroSectionProps) {
 
   // 5개의 고정 위치 정의
   const positions = [
-    { offset: -615, rotation: 60, scale: 1.05, translateY: "0px", width: "w-64", height: "h-96" },
-    { offset: -335, rotation: 35, scale: 1.1, translateY: "0px", width: "w-64", height: "h-96" },
+    { offset: -615, rotation: 50, scale: 1.05, translateY: "0px", width: "w-64", height: "h-96" },
+    { offset: -335, rotation: 25, scale: 1.05, translateY: "0px", width: "w-64", height: "h-96" },
     { offset: 0, rotation: 0, scale: 1.05, translateY: "-40px", width: "w-96", height: "h-[30rem]" },
-    { offset: 335, rotation: -35, scale: 1.1, translateY: "0px", width: "w-64", height: "h-96" },
-    { offset: 615, rotation: -60, scale: 1.05, translateY: "0px", width: "w-64", height: "h-96" },
+    { offset: 335, rotation: -25, scale: 1.05, translateY: "0px", width: "w-64", height: "h-96" },
+    { offset: 615, rotation: -50, scale: 1.05, translateY: "0px", width: "w-64", height: "h-96" },
   ];
 
   // 각 NFT가 어느 위치에 있을지 계산
@@ -44,7 +44,7 @@ export default function HeroSection({ topNFTs, onNFTClick }: HeroSectionProps) {
   };
 
   return (
-    <div className="relative mb-16" style={{ minHeight: "900px", overflow: "hidden" }}>
+    <div className="relative mt-10 mb-10" style={{ minHeight: "1000px", overflow: "hidden" }}>
       <div className="absolute inset-0 z-0">
         <Image src="/Marketpage/1.jpg" alt="background" fill className="object-cover" priority />
       </div>
@@ -76,7 +76,7 @@ export default function HeroSection({ topNFTs, onNFTClick }: HeroSectionProps) {
                 style={{
                   transform: `translateX(${position.offset}px) translateY(${position.translateY}) rotateY(${position.rotation}deg) scale(${position.scale})`,
                   zIndex: isCenter ? 50 : 10,
-                  transition: "all 1.5s cubic-bezier(0.2, 1.2, 0.54, 0.8)",
+                  transition: "all 2s cubic-bezier(0.34, 1.56, 0.64, 1)",
                 }}
                 onClick={() => onNFTClick(nft)}
               >
@@ -91,7 +91,7 @@ export default function HeroSection({ topNFTs, onNFTClick }: HeroSectionProps) {
                           <p className="text-xs text-gray-400">Highest Price</p>
                           <p className="font-bold text-xl">
                             <span className="text-white">{Number(nft.highestPrice || "0").toFixed(2)}</span>
-                            <span className="text-white ml-1">Very</span>
+                            <span className="text-yellow-500 ml-1">Very</span>
                           </p>
                         </div>
                         {isCenter && <div className="text-green-500 px-3 py-1 rounded-full text-xs font-bold">MORE +</div>}

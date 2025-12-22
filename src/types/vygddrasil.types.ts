@@ -29,6 +29,7 @@ export type GameProgress = {
   choices_made: ChoiceHistoryItem[];
   created_at?: string;
   updated_at?: string;
+  character_id?: number; // 🆕 추가
 };
 
 export type GameState = {
@@ -38,3 +39,24 @@ export type GameState = {
   autoSaveEnabled: boolean;
   lastSaved: Date | null;
 };
+
+// 🆕 캐릭터 관련 타입 추가
+export type Character = {
+  id: number;
+  class: string;
+  str: number;
+  agi: number;
+  int: number;
+  hp: number;
+  mp: number;
+  luck: number;
+  created_at: string;
+  updated_at?: string;
+  wallet_address: string;
+};
+
+export type CharacterWithProgress = Character & {
+  progress?: GameProgress;
+};
+
+export type CharacterClass = "assassin" | "archer" | "bard" | "magician" | "warrior";
