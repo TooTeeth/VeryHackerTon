@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { FaWallet } from "react-icons/fa";
 import Image from "next/image";
 import { ethers } from "ethers";
+import { createPortal } from "react-dom";
 
 import ConnectedWalletModal from "./ConnectedWalletModal";
 import WalletModal from "./WalletModal";
@@ -123,7 +124,7 @@ export default function WalletButton({ modalPosition = "dropdown" }: { modalPosi
         {wallet && <span className="font-semibold text-gray-100 dark:text-white">{getConnectedText()}</span>}
       </button>
 
-      {isModalOpen && (wallet ? <ConnectedWalletModal onClose={() => setIsModalOpen(false)} onDisconnect={() => setWallet(null)} wallet={wallet} position={modalPosition} /> : <WalletModal onClose={() => setIsModalOpen(false)} onConnect={handleWalletConnect} />)}
+      {isModalOpen && typeof window !== "undefined" && createPortal(wallet ? <ConnectedWalletModal onClose={() => setIsModalOpen(false)} onDisconnect={() => setWallet(null)} wallet={wallet} position={modalPosition} /> : <WalletModal onClose={() => setIsModalOpen(false)} onConnect={handleWalletConnect} />, document.body)}
     </>
   );
 }

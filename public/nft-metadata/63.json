@@ -1,0 +1,16 @@
+{
+  "name": "VTDN 전설의 뱃지",
+  "description": "VTDN 커뮤니티 초기 멤버에게 주어지는 뱃지. All stats + 10",
+  "image": "https://jade-implicit-barnacle-147.mypinata.cloud/ipfs/bafybeibkdfjby6gx2epmap263vtqedghi76awdziau4htlwhxbpshyiliu",
+  "category": "칭호",
+  "attributes": [
+    { "trait_type": "STR", "value": 10 },
+    { "trait_type": "AGI", "value": 10 },
+    { "trait_type": "INT", "value": 10 },
+    { "trait_type": "HP", "value": 10 },
+    { "trait_type": "MP", "value": 10 },
+    { "trait_type": "LUCK", "value": 10 },
+    { "trait_type": "Category", "value": "칭호" },
+    { "trait_type": "Rarity", "value": "Legendary" }
+  ]
+}

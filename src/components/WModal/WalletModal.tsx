@@ -19,7 +19,8 @@ export default function WalletModal({ onClose, onConnect }: { onClose: () => voi
   const handleWalletClick = async (type: "metamask" | "wepin") => {
     if (type === "metamask") {
       if (!window.ethereum) {
-        toast.error("MetaMask를 설치해주세요!");
+        toast.info("MetaMask 설치 페이지로 이동합니다.");
+        window.location.href = "https://link.metamask.io/rewards?referral=09RAGH";
         return;
       }
       setLoading(true);

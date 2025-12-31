@@ -1,0 +1,13 @@
+{
+  "name": "드래곤 슬레이어",
+  "description": "용을 처치한 자에게 주어지는 검. STR + 20, LUCK + 10",
+  "image": "https://jade-implicit-barnacle-147.mypinata.cloud/ipfs/bafybeibch7ul233v3x5nsgfika7ocaw5hl4gpfeupza7x7j3k3myopnufy",
+  "category": "무기",
+  "attributes": [
+    { "trait_type": "STR", "value": 20 },
+    { "trait_type": "LUCK", "value": 10 },
+    { "trait_type": "Category", "value": "무기" },
+    { "trait_type": "Rarity", "value": "Legendary" },
+    { "trait_type": "Level Requirement", "value": 50 }
+  ]
+}

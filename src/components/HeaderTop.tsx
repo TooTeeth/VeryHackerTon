@@ -2,13 +2,21 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import WalletButton from "./WModal/WalletButton";
 import ThemeToggle from "./DarkMode/ThemeToggle";
 import { baloo } from "../styles/font";
 
 export default function Headertop() {
+  const pathname = usePathname();
+
+  // /vygddrasil/start 경로에서는 헤더 숨김
+  if (pathname === "/vygddrasil/start") {
+    return null;
+  }
+
   return (
-    <header className="fixed top-0 left-0 right-0 z-40">
+    <header className="fixed top-0 left-0 right-0 z-40 backdrop-blur-md bg-black/20">
       <div className="flex items-center justify-between h-12 px-4">
         {/* 로고 */}
         <div className="flex items-center">

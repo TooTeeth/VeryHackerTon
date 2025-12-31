@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import { VygddrasilService } from "../../services/vygddrasil.service";
 import { CharacterWithProgress, CharacterClass } from "../../types/vygddrasil.types";
+import { Pagination } from "../ppage/Pagination";
 
 const classNames: Record<CharacterClass, string> = {
   assassin: "Assassin",
@@ -15,11 +16,17 @@ const classNames: Record<CharacterClass, string> = {
   warrior: "Warrior",
 };
 
+const ITEMS_PER_PAGE = 6;
+
 export default function CharacterSelect({ walletAddress }: { walletAddress: string }) {
   const [characters, setCharacters] = useState<CharacterWithProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const router = useRouter();
+
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const currentCharacters = characters.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   const loadCharacters = async () => {
     setLoading(true);
@@ -119,7 +126,7 @@ export default function CharacterSelect({ walletAddress }: { walletAddress: stri
         backgroundImage: "url('/Vygddrasilpage/back.png')",
         backgroundSize: "cover",
         backgroundPosition: "center",
-        paddingTop: "2rem",
+        paddingTop: "6rem",
         paddingBottom: "2rem",
       }}
     >
@@ -127,56 +134,56 @@ export default function CharacterSelect({ walletAddress }: { walletAddress: stri
         <h1 className="text-4xl text-white font-bold text-center mb-8">캐릭터 선택</h1>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {characters.map((char) => (
+          {currentCharacters.map((char) => (
             <div key={char.id} onClick={() => setSelectedCharacterId(char.id)} className={`relative cursor-pointer transition-all duration-200 ${selectedCharacterId === char.id ? "ring-4 ring-yellow-400 scale-105" : "hover:scale-102"}`}>
-              <div className="bg-gray-800 bg-opacity-90 rounded-lg p-6 shadow-lg">
+              <div className="bg-gray-800 bg-opacity-90 rounded-lg p-4 shadow-lg flex flex-col" style={{ minHeight: "420px" }}>
                 {/* Character Image */}
-                <div className="flex justify-center mb-4">
-                  <Image src={`/Vygddrasilpage/character/${char.class}.jpg`} alt={char.class} width={200} height={200} className="rounded-lg border-2 border-gray-600" />
+                <div className="flex justify-center mb-3">
+                  <Image src={`/Vygddrasilpage/character/${char.class}.jpg`} alt={char.class} width={160} height={160} className="rounded-lg border-2 border-gray-600" />
                 </div>
 
                 {/* Class Name */}
-                <h2 className="text-2xl font-bold text-center text-white mb-4">{classNames[char.class as CharacterClass]}</h2>
+                <h2 className="text-xl font-bold text-center text-white mb-3">{classNames[char.class as CharacterClass]}</h2>
 
                 {/* Stats */}
-                <div className="grid grid-cols-2 gap-2 text-white mb-4">
-                  <div className="text-sm">
+                <div className="grid grid-cols-2 gap-1 text-white mb-3">
+                  <div className="text-xs">
                     <span className="font-bold">STR:</span> {char.str}
                   </div>
-                  <div className="text-sm">
+                  <div className="text-xs">
                     <span className="font-bold">AGI:</span> {char.agi}
                   </div>
-                  <div className="text-sm">
+                  <div className="text-xs">
                     <span className="font-bold">INT:</span> {char.int}
                   </div>
-                  <div className="text-sm">
+                  <div className="text-xs">
                     <span className="font-bold">LUCK:</span> {char.luck}
                   </div>
-                  <div className="text-sm">
+                  <div className="text-xs">
                     <span className="font-bold">HP:</span> {char.hp}
                   </div>
-                  <div className="text-sm">
+                  <div className="text-xs">
                     <span className="font-bold">MP:</span> {char.mp}
                   </div>
                 </div>
 
-                {/* Progress Info */}
-                {char.progress ? (
-                  <div className="bg-gray-700 rounded p-3 mb-3">
-                    <div className="text-xs text-gray-300 mb-1">
-                      📍 현재 위치: <span className="font-bold">{char.progress.current_stage}</span>
-                    </div>
-                    <div className="text-xs text-gray-300 mb-1">🗺️ 방문한 장소: {char.progress.visited_stages?.length || 0}개</div>
-                    <div className="text-xs text-gray-300">⏱️ 마지막 플레이: {new Date(char.progress.updated_at || "").toLocaleDateString()}</div>
-                  </div>
-                ) : (
-                  <div className="bg-gray-700 rounded p-3 mb-3">
+                {/* Progress Info - 항상 동일한 높이 유지 */}
+                <div className="bg-gray-700 rounded p-2 mb-2 flex-1 flex flex-col justify-center" style={{ minHeight: "70px" }}>
+                  {char.progress ? (
+                    <>
+                      <div className="text-xs text-gray-300 mb-1">
+                        📍 현재 위치: <span className="font-bold">{char.progress.current_stage}</span>
+                      </div>
+                      <div className="text-xs text-gray-300 mb-1">🗺️ 방문한 장소: {char.progress.visited_stages?.length || 0}개</div>
+                      <div className="text-xs text-gray-300">⏱️ 마지막 플레이: {new Date(char.progress.updated_at || "").toLocaleDateString()}</div>
+                    </>
+                  ) : (
                     <div className="text-xs text-gray-300 text-center">아직 플레이하지 않은 캐릭터</div>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {/* Created Date */}
-                <div className="text-xs text-gray-400 text-center mb-3">생성일: {new Date(char.created_at).toLocaleDateString()}</div>
+                <div className="text-xs text-gray-400 text-center mb-2">생성일: {new Date(char.created_at).toLocaleDateString()}</div>
 
                 {/* Delete Button */}
                 <button
@@ -184,7 +191,7 @@ export default function CharacterSelect({ walletAddress }: { walletAddress: stri
                     e.stopPropagation();
                     handleDeleteCharacter(char.id);
                   }}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white text-sm py-2 rounded transition"
+                  className="w-full bg-red-600 hover:bg-red-700 text-white text-sm py-2 rounded transition mt-auto"
                 >
                   삭제
                 </button>
@@ -192,6 +199,11 @@ export default function CharacterSelect({ walletAddress }: { walletAddress: stri
             </div>
           ))}
         </div>
+
+        {/* Pagination */}
+        {characters.length > ITEMS_PER_PAGE && (
+          <Pagination totalItems={characters.length} itemsPerPage={ITEMS_PER_PAGE} currentPage={currentPage} setCurrentPage={setCurrentPage} variant="dark" />
+        )}
 
         {/* Action Buttons */}
         <div className="flex justify-center gap-4">

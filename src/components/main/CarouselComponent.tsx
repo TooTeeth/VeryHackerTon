@@ -129,8 +129,6 @@ export default function CarouselComponent() {
         }
 
         .slide-image {
-          max-height: 250px;
-          width: auto;
         }
 
         .swiper-button-next::after,

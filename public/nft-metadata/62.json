@@ -1,0 +1,13 @@
+{
+  "name": "마법사의 로브",
+  "description": "고대 마법사가 입던 로브. INT + 25, MP + 100",
+  "image": "https://jade-implicit-barnacle-147.mypinata.cloud/ipfs/bafkreidsb7hzqj76zt6p5jf4j375xgl7t4dbnculldpxmqfg3w5nwghbba",
+  "category": "상의",
+  "attributes": [
+    { "trait_type": "INT", "value": 25 },
+    { "trait_type": "MP", "value": 100 },
+    { "trait_type": "Category", "value": "상의" },
+    { "trait_type": "Rarity", "value": "Epic" },
+    { "trait_type": "Class", "value": "Magician" }
+  ]
+}

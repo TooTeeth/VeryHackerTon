@@ -33,11 +33,11 @@ export default function ConnectedWalletModal({ onClose, wallet, onDisconnect, po
       }
     }
 
-    localStorage.setItem("disconnectedManually", "true"); // 수동 연결 해제 플래그
+    localStorage.setItem("disconnectedManually", "true");
     localStorage.removeItem("connectedWallet");
 
-    onDisconnect(); // 상태 초기화
-    onClose(); // 모달 닫기
+    onDisconnect();
+    onClose();
   };
 
   const handlewindow = async () => {
@@ -50,7 +50,7 @@ export default function ConnectedWalletModal({ onClose, wallet, onDisconnect, po
     <>
       {position === "center" && <div className="fixed inset-0 bg-black/50 z-[999]" onClick={onClose} />}
 
-      <div className={`z-[1000] ${position === "center" ? "fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" : "absolute mt-60 right-30"} bg-white p-6 rounded-xl w-[320px] shadow-xl`}>
+      <div className={`z-[1000] ${position === "center" ? "fixed inset-0 flex items-center justify-center" : "fixed top-16 right-5"} bg-white p-6 rounded-xl w-[320px] shadow-xl`}>
         <button onClick={onClose} className="absolute top-3 right-3 text-gray-600 hover:text-black">
           <FaTimes />
         </button>

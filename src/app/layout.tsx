@@ -16,10 +16,12 @@ interface RootLayoutProps {
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en" suppressHydrationWarning={true}>
-      <body className="bg-white dark:bg-c89bec min-h-screen">
+      <body className="bg-white dark:bg-c89bec h-screen overflow-hidden">
         <WalletProvider>
-          <Headertop />
-          {children}
+          <div className="flex flex-col h-full">
+            <Headertop />
+            <main className="flex-1 overflow-y-auto no-scrollbar">{children}</main>
+          </div>
         </WalletProvider>
       </body>
     </html>

@@ -1,5 +1,5 @@
 // lib/services/supabaseHistory.ts
-import { supabase } from "./supabaseMarketplace";
+import { supabase } from "./supabaseClient";
 
 export type NFTEventType = "listing" | "cancel" | "buy" | "sell";
 

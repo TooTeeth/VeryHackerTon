@@ -100,7 +100,7 @@ export async function fetchUserNFTs(walletAddress: string, nftContracts: NFTCont
         const nft721 = new ethers.Contract(address, ERC721_ABI, provider);
 
         // 안전하게 tokenId 범위를 제한
-        for (let tokenId = 50; tokenId <= 60; tokenId++) {
+        for (let tokenId = 50; tokenId <= 65; tokenId++) {
           try {
             const owner = await nft721.ownerOf(tokenId);
             if (owner.toLowerCase() !== walletAddress.toLowerCase()) continue;
@@ -113,7 +113,7 @@ export async function fetchUserNFTs(walletAddress: string, nftContracts: NFTCont
           }
         }
       } else if (type === "ERC1155") {
-        for (let tokenId = 50; tokenId <= 60; tokenId++) {
+        for (let tokenId = 50; tokenId <= 65; tokenId++) {
           try {
             const nft = await fetchERC1155NFT(address, tokenId.toString(), walletAddress);
             if (nft) results.push(nft);
