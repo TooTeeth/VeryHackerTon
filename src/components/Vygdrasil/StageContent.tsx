@@ -218,9 +218,7 @@ export const StageContent: React.FC<StageContentProps> = ({ stageMeta, viewerSet
             {/* 첫 페이지: 이미지 ON이면 제목+이미지만 */}
             {isFirstPage && viewerSettings.showImage ? (
               <div className="flex flex-col h-full">
-                {viewerSettings.showTitle !== false && (
-                  <h2 className="text-3xl font-bold text-center">{stageMeta.title}</h2>
-                )}
+                {viewerSettings.showTitle !== false && <h2 className="text-3xl font-bold text-center">{stageMeta.title}</h2>}
                 <div className="flex-1 flex items-start justify-center pt-4">{stageMeta.image_url && <Image src={stageMeta.image_url} alt={stageMeta.title || "Stage image"} width={500} height={500} className="rounded-lg shadow-lg" style={{ width: "auto", height: "auto", maxHeight: "calc(100vh - 200px)" }} priority />}</div>
               </div>
             ) : (
@@ -237,8 +235,8 @@ export const StageContent: React.FC<StageContentProps> = ({ stageMeta, viewerSet
                 {showChoiceOnLeft && choices.length > 0 && showChoices && (
                   <div className="mt-6">
                     {/* 투표 중 안내 */}
-                    {choices.some(item => item.isVotingChoice) && (
-                      <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-600/50 rounded-lg">
+                    {choices.some((item) => item.isVotingChoice) && (
+                      <div className="mb-4 p-3  border  rounded-lg">
                         <div className="flex items-center gap-2 text-yellow-400">
                           <span>🗳️</span>
                           <span className="text-sm font-medium">이 선택지들은 DAO 투표 대상입니다!</span>
@@ -253,16 +251,7 @@ export const StageContent: React.FC<StageContentProps> = ({ stageMeta, viewerSet
                         const isItemDisabled = item.isDisabledByVote || disabled;
                         return (
                           <li key={item.id}>
-                            <button
-                              onClick={() => !isItemDisabled && onChoiceClick?.(item.value, item.choice)}
-                              disabled={isItemDisabled}
-                              className={`text-left text-xl font-bold transition duration-200 ease-in-out ${
-                                isItemDisabled
-                                  ? "text-gray-500 cursor-not-allowed line-through opacity-50"
-                                  : "text-amber-400 hover:text-amber-200"
-                              }`}
-                              title={disabled ? "부활 처리 중입니다..." : item.isDisabledByVote ? "투표에서 선택되지 않은 선택지입니다" : item.isVotingChoice ? "DAO 투표 대상 선택지입니다" : ""}
-                            >
+                            <button onClick={() => !isItemDisabled && onChoiceClick?.(item.value, item.choice)} disabled={isItemDisabled} className={`text-left text-xl font-bold transition duration-200 ease-in-out ${isItemDisabled ? "text-gray-500 cursor-not-allowed line-through opacity-50" : "text-amber-400 hover:text-amber-200"}`} title={disabled ? "부활 처리 중입니다..." : item.isDisabledByVote ? "투표에서 선택되지 않은 선택지입니다" : item.isVotingChoice ? "DAO 투표 대상 선택지입니다" : ""}>
                               &gt; {item.choice}
                               {item.isVotingChoice && !item.isDisabledByVote && <span className="ml-2 text-xs text-yellow-600">🗳️</span>}
                               {item.isDisabledByVote && <span className="ml-2 text-xs text-gray-600">(투표 미선택)</span>}
@@ -298,8 +287,8 @@ export const StageContent: React.FC<StageContentProps> = ({ stageMeta, viewerSet
                 {(showChoiceOnLeft || showChoiceOnRight) && choices.length > 0 && showChoices && (
                   <div className="mt-6">
                     {/* 투표 중 안내 */}
-                    {choices.some(item => item.isVotingChoice) && (
-                      <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-600/50 rounded-lg">
+                    {choices.some((item) => item.isVotingChoice) && (
+                      <div className="mb-4 p-3 border border-yellow-600/50 rounded-lg">
                         <div className="flex items-center gap-2 text-yellow-400">
                           <span>🗳️</span>
                           <span className="text-sm font-medium">이 선택지들은 DAO 투표 대상입니다!</span>
@@ -314,16 +303,7 @@ export const StageContent: React.FC<StageContentProps> = ({ stageMeta, viewerSet
                         const isItemDisabled = item.isDisabledByVote || disabled;
                         return (
                           <li key={item.id}>
-                            <button
-                              onClick={() => !isItemDisabled && onChoiceClick?.(item.value, item.choice)}
-                              disabled={isItemDisabled}
-                              className={`text-left text-xl font-bold transition duration-200 ease-in-out ${
-                                isItemDisabled
-                                  ? "text-gray-500 cursor-not-allowed line-through opacity-50"
-                                  : "text-amber-400 hover:text-amber-200"
-                              }`}
-                              title={disabled ? "부활 처리 중입니다..." : item.isDisabledByVote ? "투표에서 선택되지 않은 선택지입니다" : item.isVotingChoice ? "DAO 투표 대상 선택지입니다" : ""}
-                            >
+                            <button onClick={() => !isItemDisabled && onChoiceClick?.(item.value, item.choice)} disabled={isItemDisabled} className={`text-left text-xl font-bold transition duration-200 ease-in-out ${isItemDisabled ? "text-gray-500 cursor-not-allowed line-through opacity-50" : "text-amber-400 hover:text-amber-200"}`} title={disabled ? "부활 처리 중입니다..." : item.isDisabledByVote ? "투표에서 선택되지 않은 선택지입니다" : item.isVotingChoice ? "DAO 투표 대상 선택지입니다" : ""}>
                               &gt; {item.choice}
                               {item.isVotingChoice && !item.isDisabledByVote && <span className="ml-2 text-xs text-yellow-600">🗳️</span>}
                               {item.isDisabledByVote && <span className="ml-2 text-xs text-gray-600">(투표 미선택)</span>}
@@ -357,8 +337,8 @@ export const StageContent: React.FC<StageContentProps> = ({ stageMeta, viewerSet
                 {showChoiceOnRight && choices.length > 0 && showChoices && (
                   <div className="mt-6">
                     {/* 투표 중 안내 */}
-                    {choices.some(item => item.isVotingChoice) && (
-                      <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-600/50 rounded-lg">
+                    {choices.some((item) => item.isVotingChoice) && (
+                      <div className="mb-4 p-3  border border-yellow-600/50 rounded-lg">
                         <div className="flex items-center gap-2 text-yellow-400">
                           <span>🗳️</span>
                           <span className="text-sm font-medium">이 선택지들은 DAO 투표 대상입니다!</span>
@@ -373,16 +353,7 @@ export const StageContent: React.FC<StageContentProps> = ({ stageMeta, viewerSet
                         const isItemDisabled = item.isDisabledByVote || disabled;
                         return (
                           <li key={item.id}>
-                            <button
-                              onClick={() => !isItemDisabled && onChoiceClick?.(item.value, item.choice)}
-                              disabled={isItemDisabled}
-                              className={`text-left text-xl font-bold transition duration-200 ease-in-out ${
-                                isItemDisabled
-                                  ? "text-gray-500 cursor-not-allowed line-through opacity-50"
-                                  : "text-amber-400 hover:text-amber-200"
-                              }`}
-                              title={disabled ? "부활 처리 중입니다..." : item.isDisabledByVote ? "투표에서 선택되지 않은 선택지입니다" : item.isVotingChoice ? "DAO 투표 대상 선택지입니다" : ""}
-                            >
+                            <button onClick={() => !isItemDisabled && onChoiceClick?.(item.value, item.choice)} disabled={isItemDisabled} className={`text-left text-xl font-bold transition duration-200 ease-in-out ${isItemDisabled ? "text-gray-500 cursor-not-allowed line-through opacity-50" : "text-amber-400 hover:text-amber-200"}`} title={disabled ? "부활 처리 중입니다..." : item.isDisabledByVote ? "투표에서 선택되지 않은 선택지입니다" : item.isVotingChoice ? "DAO 투표 대상 선택지입니다" : ""}>
                               &gt; {item.choice}
                               {item.isVotingChoice && !item.isDisabledByVote && <span className="ml-2 text-xs text-yellow-600">🗳️</span>}
                               {item.isDisabledByVote && <span className="ml-2 text-xs text-gray-600">(투표 미선택)</span>}
