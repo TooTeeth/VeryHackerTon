@@ -1,7 +1,10 @@
 "use client";
 import CarouselComponent from "./CarouselComponent";
+import { useLanguage } from "../../context/LanguageContext";
 
 export default function MainCard() {
+  const { t } = useLanguage();
+
   return (
     <section
       id="MainCard-section"
@@ -91,7 +94,7 @@ export default function MainCard() {
               animation: "fadeInDown 1s ease-out",
             }}
           >
-            DEFINE YOUR LEGACY
+            {t("main.defineYourLegacy")}
           </h1>
 
           {/* Subtitle */}
@@ -135,9 +138,9 @@ export default function MainCard() {
                   color: "transparent",
                 }}
               >
-                THE ERA · GENRE
+                {t("main.theEra")} · {t("main.genre")}
               </span>{" "}
-              YOU CHOOSE SHAPES YOUR PATH
+              {t("main.chooseYourPath")}
             </p>
           </div>
         </div>

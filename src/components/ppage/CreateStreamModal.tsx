@@ -6,6 +6,7 @@ import { toast } from "react-toastify";
 import { uploadGameImage } from "../../lib/uploadGameImage";
 import CreateButton from "./CreateButton";
 import Image from "next/image";
+import { useLanguage } from "../../context/LanguageContext";
 
 interface CreateStreamModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ interface CreateStreamModalProps {
 type ScheduleType = "monthly" | "weekly" | "daily" | "custom";
 
 export default function CreateStreamModal({ isOpen, onClose, onSuccess }: CreateStreamModalProps) {
+  const { t } = useLanguage();
   const [formData, setFormData] = useState({
     title: "",
     era: "",
@@ -92,14 +94,14 @@ export default function CreateStreamModal({ isOpen, onClose, onSuccess }: Create
 
   const handleCreate = async (data: { Title: string; Players: number; Era: string; Genre: string; Plan: number }) => {
     if (!imageFile) {
-      toast.error("Please upload a stream image");
+      toast.error(t("play.createModal.uploadImage"));
       return;
     }
 
     try {
       const imageUrl = await uploadGameImage(imageFile);
       if (!imageUrl) {
-        toast.error("Image upload failed");
+        toast.error(t("play.createModal.uploadFailed"));
         return;
       }
 
@@ -113,11 +115,11 @@ export default function CreateStreamModal({ isOpen, onClose, onSuccess }: Create
 
       if (error) {
         console.error("Stream creation error:", error);
-        toast.error("Failed to create stream");
+        toast.error(t("play.createModal.createFailed"));
         return;
       }
 
-      toast.success("Stream created successfully! 🎉");
+      toast.success(t("play.createModal.createSuccess"));
 
       setFormData({
         title: "",
@@ -145,14 +147,14 @@ export default function CreateStreamModal({ isOpen, onClose, onSuccess }: Create
       onClose();
     } catch (error) {
       console.error("Unexpected error:", error);
-      toast.error("An unexpected error occurred");
+      toast.error(t("play.createModal.unexpectedError"));
     }
   };
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
       <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-700 shadow-2xl">
         <div className="sticky top-0 bg-gray-900 border-b border-gray-700 px-8 py-6 flex justify-between items-center">
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">Create a Stream</h2>
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">{t("play.createModal.title")}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors text-2xl" disabled={isSubmitting}>
             ×
           </button>
@@ -161,79 +163,79 @@ export default function CreateStreamModal({ isOpen, onClose, onSuccess }: Create
         <div className="p-8 space-y-6">
           <div>
             <label className="block text-white font-medium mb-2">
-              Title <span className="text-red-500">*</span>
+              {t("play.createModal.titleLabel")} <span className="text-red-500">*</span>
             </label>
-            <input type="text" name="title" value={formData.title} onChange={handleInputChange} placeholder="Enter stream title" className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition" required />
+            <input type="text" name="title" value={formData.title} onChange={handleInputChange} placeholder={t("play.createModal.titlePlaceholder")} className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition" required />
           </div>
 
           <div>
             <label className="block text-white font-medium mb-2">
-              Era <span className="text-red-500">*</span>
+              {t("play.createModal.eraLabel")} <span className="text-red-500">*</span>
             </label>
             <select name="era" value={formData.era} onChange={handleInputChange} className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition" required>
-              <option value="">Select era</option>
+              <option value="">{t("play.createModal.eraPlaceholder")}</option>
               <option value="MiddleAge">MiddleAge</option>
               <option value="Cyberpunk">Cyberpunk</option>
               <option value="Modern">Modern</option>
-              <option value="Others">Others</option>
+              <option value="Others">{t("play.createModal.others")}</option>
             </select>
-            {formData.era === "Others" && <input type="text" name="customEra" value={formData.customEra} onChange={handleInputChange} placeholder="Enter custom era" className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition mt-2" required />}
+            {formData.era === "Others" && <input type="text" name="customEra" value={formData.customEra} onChange={handleInputChange} placeholder={t("play.createModal.customEraPlaceholder")} className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition mt-2" required />}
           </div>
 
           <div>
             <label className="block text-white font-medium mb-2">
-              Genre <span className="text-red-500">*</span>
+              {t("play.createModal.genreLabel")} <span className="text-red-500">*</span>
             </label>
             <select name="genre" value={formData.genre} onChange={handleInputChange} className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition" required>
-              <option value="">Select genre</option>
+              <option value="">{t("play.createModal.genrePlaceholder")}</option>
               <option value="Fantasy">Fantasy</option>
               <option value="Action">Action</option>
               <option value="Romance">Romance</option>
-              <option value="Others">Others</option>
+              <option value="Others">{t("play.createModal.others")}</option>
             </select>
-            {formData.genre === "Others" && <input type="text" name="customGenre" value={formData.customGenre} onChange={handleInputChange} placeholder="Enter custom genre" className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition mt-2" required />}
+            {formData.genre === "Others" && <input type="text" name="customGenre" value={formData.customGenre} onChange={handleInputChange} placeholder={t("play.createModal.customGenrePlaceholder")} className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition mt-2" required />}
           </div>
 
           <div>
             <label className="block text-white font-medium mb-2">
-              Players <span className="text-red-500">*</span>
+              {t("play.createModal.playersLabel")} <span className="text-red-500">*</span>
             </label>
             <select name="playersType" value={formData.playersType} onChange={handleInputChange} className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition">
-              <option value="Unlimited">Unlimited (∞)</option>
-              <option value="Limited">Limited</option>
+              <option value="Unlimited">{t("play.unlimited")} (∞)</option>
+              <option value="Limited">{t("play.limited")}</option>
             </select>
-            {formData.playersType === "Limited" && <input type="number" name="playersLimit" value={formData.playersLimit} onChange={handleInputChange} placeholder="Enter number of players" min="1" className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition mt-2" required />}
+            {formData.playersType === "Limited" && <input type="number" name="playersLimit" value={formData.playersLimit} onChange={handleInputChange} placeholder={t("play.createModal.playersPlaceholder")} min="1" className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition mt-2" required />}
           </div>
 
           <div>
             <label className="block text-white font-medium mb-2">
-              Plan <span className="text-red-500">*</span>
+              {t("play.createModal.planLabel")} <span className="text-red-500">*</span>
             </label>
             <select name="planType" value={formData.planType} onChange={handleInputChange} className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition">
-              <option value="Free">Free</option>
-              <option value="Paid">Paid</option>
+              <option value="Free">{t("play.free")}</option>
+              <option value="Paid">{t("play.paid")}</option>
             </select>
-            {formData.planType === "Paid" && <input type="number" name="planFee" value={formData.planFee} onChange={handleInputChange} placeholder="Enter fee amount" min="0" className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition mt-2" required />}
+            {formData.planType === "Paid" && <input type="number" name="planFee" value={formData.planFee} onChange={handleInputChange} placeholder={t("play.createModal.planFeePlaceholder")} min="0" className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition mt-2" required />}
           </div>
 
           <div>
             <label className="block text-white font-medium mb-2">
-              Schedule <span className="text-red-500">*</span>
+              {t("play.createModal.scheduleLabel")} <span className="text-red-500">*</span>
             </label>
             <select name="scheduleType" value={formData.scheduleType} onChange={handleInputChange} className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition">
-              <option value="monthly">Monthly</option>
-              <option value="weekly">Weekly</option>
-              <option value="daily">Daily</option>
-              <option value="custom">Custom</option>
+              <option value="monthly">{t("play.createModal.monthly")}</option>
+              <option value="weekly">{t("play.createModal.weekly")}</option>
+              <option value="daily">{t("play.createModal.daily")}</option>
+              <option value="custom">{t("play.createModal.custom")}</option>
             </select>
 
             {formData.scheduleType === "monthly" && (
               <div className="grid grid-cols-3 gap-3 mt-3">
                 <select name="monthlyWeek" value={formData.monthlyWeek} onChange={handleInputChange} className="px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition">
-                  <option value="1">1st Week</option>
-                  <option value="2">2nd Week</option>
-                  <option value="3">3rd Week</option>
-                  <option value="4">4th Week</option>
+                  <option value="1">1st {t("play.createModal.week")}</option>
+                  <option value="2">2nd {t("play.createModal.week")}</option>
+                  <option value="3">3rd {t("play.createModal.week")}</option>
+                  <option value="4">4th {t("play.createModal.week")}</option>
                 </select>
                 <select name="monthlyDay" value={formData.monthlyDay} onChange={handleInputChange} className="px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition">
                   {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((day) => (
@@ -261,12 +263,12 @@ export default function CreateStreamModal({ isOpen, onClose, onSuccess }: Create
 
             {formData.scheduleType === "daily" && <input type="time" name="dailyTime" value={formData.dailyTime} onChange={handleInputChange} className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition mt-3" />}
 
-            {formData.scheduleType === "custom" && <input type="text" name="customSchedule" value={formData.customSchedule} onChange={handleInputChange} placeholder="Enter custom schedule" className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition mt-3" required />}
+            {formData.scheduleType === "custom" && <input type="text" name="customSchedule" value={formData.customSchedule} onChange={handleInputChange} placeholder={t("play.createModal.customSchedulePlaceholder")} className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition mt-3" required />}
           </div>
 
           <div>
             <label className="block text-white font-medium mb-2">
-              Stream Image <span className="text-red-500">*</span>
+              {t("play.createModal.imageLabel")} <span className="text-red-500">*</span>
             </label>
             <input type="file" accept="image/*" onChange={handleImageChange} className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-purple-600 file:text-white hover:file:bg-purple-700 file:cursor-pointer" />
             {imagePreview && (
@@ -278,7 +280,7 @@ export default function CreateStreamModal({ isOpen, onClose, onSuccess }: Create
 
           <div className="flex gap-4 pt-4">
             <button type="button" onClick={onClose} disabled={isSubmitting} className="flex-1 px-3 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition disabled:opacity-50 disabled:cursor-not-allowed font-medium">
-              Cancel
+              {t("common.cancel")}
             </button>
             <div className="flex-1">
               <CreateButton

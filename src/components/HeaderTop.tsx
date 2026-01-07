@@ -4,11 +4,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import WalletButton from "./WModal/WalletButton";
-import ThemeToggle from "./DarkMode/ThemeToggle";
+import LanguageSelector from "./DarkMode/LanguageSelector";
 import { baloo } from "../styles/font";
+import { useLanguage } from "../context/LanguageContext";
 
 export default function Headertop() {
   const pathname = usePathname();
+  const { t } = useLanguage();
 
   // /vygddrasil/start 경로에서는 헤더 숨김
   if (pathname === "/vygddrasil/start") {
@@ -31,29 +33,29 @@ export default function Headertop() {
         {/* 메뉴 */}
         <nav className="flex space-x-10 flex-1 justify-start ml-10 mt-2 text-white">
           <Link href="/play" className="hover:text-red-500 font-semibold">
-            Play
+            {t("nav.play")}
           </Link>
           <Link href="/market" className="hover:text-green-500 font-semibold">
-            Market
+            {t("nav.market")}
           </Link>
           <Link href="/swap" className="hover:text-blue-500 font-semibold">
-            Swap
+            {t("nav.swap")}
           </Link>
           <Link href="/earn" className="hover:text-yellow-500 font-semibold">
-            Earn
+            {t("nav.earn")}
           </Link>
           <Link href="/voting" className="hover:text-purple-500 font-semibold">
-            Voting
+            {t("nav.voting")}
           </Link>
           <Link href="/more" className="hover:text-sky-500 font-semibold">
-            More
+            {t("nav.more")}
           </Link>
         </nav>
 
         {/* 오른쪽 버튼 */}
         <div className="flex items-center space-x-4">
           <WalletButton modalPosition="dropdown" />
-          <ThemeToggle />
+          <LanguageSelector />
         </div>
       </div>
     </header>

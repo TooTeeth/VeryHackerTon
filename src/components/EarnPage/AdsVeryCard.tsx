@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabaseClient";
 import Image from "next/image";
 import { FcApproval } from "react-icons/fc";
 import { toast } from "react-toastify";
+import { useLanguage } from "../../context/LanguageContext";
 
 type CardType = {
   id: number;
@@ -22,6 +23,7 @@ type ClaimRecord = {
 
 export default function AdsVeryCard() {
   const { wallet } = useWallet();
+  const { t } = useLanguage();
 
   const [totalClaimed, setTotalClaimed] = useState(0);
   const [cards, setCards] = useState<CardType[]>([]);
@@ -87,7 +89,7 @@ export default function AdsVeryCard() {
   // 클릭 핸들러 - 이미지 클릭 시
   const handleCardClick = async (card: CardType) => {
     if (!wallet?.address) {
-      toast.error("Your wallet is not connected.");
+      toast.error(t("earn.walletNotConnected"));
       return;
     }
 
@@ -97,14 +99,14 @@ export default function AdsVeryCard() {
       if (card.url) {
         window.open(card.url, "_blank");
       }
-      toast.info("Already claimed today. Come back tomorrow!");
+      toast.info(t("earn.alreadyClaimed"));
       return;
     }
 
     // 쿨다운 확인 (연속 클릭 방지)
     const now = Date.now();
     if (now - lastClickTime < CLICK_COOLDOWN) {
-      toast.warning("Please wait a moment before clicking again.");
+      toast.warning(t("earn.pleaseWait"));
       return;
     }
     setLastClickTime(now);
@@ -142,15 +144,15 @@ export default function AdsVeryCard() {
     // totalClaimed 업데이트
     setTotalClaimed((prev) => prev + data.Adsvalue);
 
-    toast.success(`+${data.Adsvalue} claimed!`);
+    toast.success(`+${data.Adsvalue} ${t("earn.claimed")}`);
   };
 
   // 전체 클레임
   const handleTotalClaim = async () => {
-    if (!wallet?.address) return toast.error("Metamask is not installed.");
+    if (!wallet?.address) return toast.error(t("earn.metamaskNotInstalled"));
 
     if (totalClaimed === 0) {
-      toast.info("No rewards to claim!");
+      toast.info(t("earn.noRewards"));
       return;
     }
 
@@ -160,7 +162,7 @@ export default function AdsVeryCard() {
 
     await supabase.from("vtdn").upsert({ wallet: wallet.address, vtdn_balance: newBalance });
 
-    toast.success(`${totalClaimed * 100} VTDN Claim Done`);
+    toast.success(`${totalClaimed * 100} ${t("earn.claimDone")}`);
     setTotalClaimed(0);
   };
 
@@ -172,7 +174,7 @@ export default function AdsVeryCard() {
           after:block after:h-0.5 after:mt-1
           after:bg-gradient-to-r after:from-pink-500 after:to-purple-500 after:w-full"
         >
-          AdsVery
+          {t("earn.adsVery")}
         </h2>
         <button onClick={handleTotalClaim} className="px-4 py-2 text-black rounded flex items-center space-x-2">
           <Image src="/Earnpage/AdsAmount.png" alt="AdsVery" width={32} height={32} />

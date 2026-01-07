@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Image from "next/image";
+import NFTPriceChart from "./NFTPriceChart";
 
 interface SellerListing {
   seller_address: string;
@@ -48,6 +49,7 @@ export default function SellerSelectionModal({ nft, wallet, sortBy: initialSortB
   const [selectedSeller, setSelectedSeller] = useState<SellerListing | null>(null);
   const [buyAmount, setBuyAmount] = useState(1);
   const [modalSortBy, setModalSortBy] = useState<SortOption>(initialSortBy);
+  const [isChartOpen, setIsChartOpen] = useState(false);
 
   const sortedSellers = useMemo(() => {
     return [...nft.sellers].sort((a, b) => {
@@ -152,6 +154,43 @@ export default function SellerSelectionModal({ nft, wallet, sortBy: initialSortB
                     </div>
                   );
                 })}
+              </div>
+
+              {/* Chart Section - Collapsible */}
+              <div className="border-t border-white/10">
+                <button
+                  onClick={() => setIsChartOpen(!isChartOpen)}
+                  className="w-full px-5 py-3 flex items-center justify-between hover:bg-white/5 transition-colors"
+                >
+                  <span className="text-white font-semibold flex items-center gap-2">
+                    <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                    </svg>
+                    Price History & Volume
+                  </span>
+                  <svg
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${isChartOpen ? "rotate-180" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                <div
+                  className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                    isChartOpen ? "max-h-[400px] opacity-100" : "max-h-0 opacity-0"
+                  }`}
+                >
+                  <div className="px-4 pb-4">
+                    <NFTPriceChart
+                      contractAddress={nft.contract_address}
+                      tokenId={nft.token_id}
+                      isVisible={isChartOpen}
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Buy Section */}

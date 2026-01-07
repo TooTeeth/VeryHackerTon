@@ -7,7 +7,6 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const { Players, Creator, Title, Era, Genre, Plan, publicImageUrl } = body;
 
-  //Create Stream
   const { data, error } = await supabase.from("Stream").insert([
     {
       Title,
@@ -18,11 +17,23 @@ export async function POST(request: NextRequest) {
       Creator,
       Image: publicImageUrl,
     },
-  ]);
+  ]).select();
 
   if (error) {
     console.error("Stream Create Failed:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Auto-register stream creator to game_operators table
+  if (data && data.length > 0 && Creator) {
+    const streamId = data[0].id;
+    const gameId = `stream_${streamId}`;
+
+    await supabase.from("game_operators").insert({
+      game_id: gameId,
+      wallet_address: Creator.toLowerCase(),
+      role: "creator",
+    });
   }
 
   return NextResponse.json({ success: true, Stream: data }, { status: 201 });

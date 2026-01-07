@@ -93,7 +93,7 @@ export default function CarouselComponent() {
                   </div>
                 ) : (
                   <div className="slide-image-wrapper">
-                    <Image src={slide.image} alt={slide.title} width={250} height={220} className="slide-image" style={{ objectFit: "contain" }} />
+                    <Image src={slide.image} alt={slide.title} width={250} height={220} className="slide-image" style={{ objectFit: "contain", width: "auto", height: "auto" }} />
                   </div>
                 )}
                 <div className="slide-title">{slide.title}</div>
@@ -178,7 +178,7 @@ export default function CarouselComponent() {
         @media (max-width: 1024px) {
           .carousel-container {
             width: 90%;
-            height: 100px;
+            margin-top: 60px;
           }
 
           .video-content {
@@ -186,21 +186,23 @@ export default function CarouselComponent() {
           }
 
           .slide-image {
-            max-height: 100px;
+            max-height: 200px;
           }
         }
 
         @media (max-width: 862px) {
           .carousel-container {
-            width: 70%;
-            height: 90px;
-            width: 400px !important;
-            height: 100px !important;
-            margin-top: 120px;
+            width: 90%;
+            max-width: 400px;
+            margin-top: 80px;
+          }
+
+          .video-frame-wrapper {
+            max-height: 280px;
           }
 
           .slide-image {
-            max-height: 250px;
+            max-height: 200px;
           }
 
           .video-content {
@@ -208,7 +210,8 @@ export default function CarouselComponent() {
           }
 
           .slide-title {
-            font-size: 20px;
+            font-size: 18px;
+            margin-top: 15px;
           }
         }
       `}</style>

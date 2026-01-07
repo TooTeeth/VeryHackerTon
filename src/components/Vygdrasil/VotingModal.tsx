@@ -7,7 +7,7 @@ import { ethers } from "ethers";
 import { VotingService, VotingSessionWithOptions, VotingOption } from "../../services/voting.service";
 import { DAO_CONTRACT_ADDRESS, DAO_ABI } from "../../lib/daoConfig";
 
-// 레거시 컨트랙트 (fallback)
+// Legacy contract (fallback)
 const LEGACY_VOTING_CONTRACT_ADDRESS = "0x54507082a8BD3f4aef9a69Ae58DeAD63cAB97244";
 const LegacyVotingAbi = [
   {
@@ -39,12 +39,24 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
   });
   const [isCreatingProposal, setIsCreatingProposal] = useState(false);
   const [createdProposalId, setCreatedProposalId] = useState<number | null>(null);
+  const [stageName, setStageName] = useState<string>("");
 
-  // 온체인 여부 확인 (VeryDAOIntegrated)
-  // 테스트: 항상 새 DAO 컨트랙트 사용 (테스트 후 원래대로 복구)
-  const isOnChainVoting = true; // 원래: session.isOnChain && DAO_CONTRACT_ADDRESS !== "0x0000000000000000000000000000000000000000"
+  // Load stage name
+  useEffect(() => {
+    if (isOpen && session.stage_id) {
+      VotingService.getStages().then((stages) => {
+        const stage = stages.find((s) => s.id === session.stage_id);
+        setStageName(stage?.title || stage?.slug || "");
+      });
+    }
+  }, [isOpen, session.stage_id]);
 
-  // 모달 열릴 때 최신 세션 데이터 가져오기
+  // Check on-chain status (VeryDAOIntegrated)
+  // Only on-chain voting when session.proposalId exists
+  // Sessions created from proposal approval don't have proposalId, use Supabase-based voting
+  const isOnChainVoting = session.isOnChain === true && session.proposalId !== undefined;
+
+  // Get latest session data when modal opens
   useEffect(() => {
     if (isOpen) {
       VotingService.getSessionById(session.id, walletAddress).then((updatedSession) => {
@@ -62,7 +74,7 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
     // Refresh session to get final results
     const updatedSession = await VotingService.getSessionById(session.id, walletAddress);
 
-    // 현재 세션 상태를 사용 (테스트 모드에서는 Supabase 데이터가 없을 수 있음)
+    // Use current session state (Supabase data may not exist in test mode)
     const sessionToCheck = updatedSession || currentSession;
 
     if (sessionToCheck) {
@@ -70,42 +82,40 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
         setCurrentSession(updatedSession);
       }
 
-      // 과반수 체크: 총 투표 수의 절반 초과해야 승리
+      // Majority check: must exceed half of total votes to win
       const totalVotes = sessionToCheck.totalVotes;
       const halfVotes = totalVotes / 2;
 
-      // 과반수를 넘은 선택지 찾기
+      // Find option that exceeded majority
       const winnerOption = sessionToCheck.options.find(opt => opt.vote_count > halfVotes);
 
       if (winnerOption) {
-        // 과반수 획득 - 승리!
-        toast.success(`투표 결과: "${winnerOption.choice_text}"이(가) 선택되었습니다!`);
+        // Majority achieved - winner!
+        toast.success(`Vote result: "${winnerOption.choice_text}" was selected!`);
         onVoteComplete(winnerOption.choice_id);
       } else if (totalVotes > 0) {
-        // 투표는 있지만 과반수 미달 - 재투표 필요
-        toast.warning("과반수를 획득한 선택지가 없습니다. 재투표가 필요합니다!");
-        // needsRevote 상태 업데이트
+        // Votes exist but no majority - revote needed
+        toast.warning("No option achieved majority. Revote is required!");
+        // Update needsRevote state
         setCurrentSession(prev => ({ ...prev, needsRevote: true }));
-        // 재투표 모달 유지 (onVoteComplete 호출하지 않음)
+        // Keep revote modal open (don't call onVoteComplete)
       } else {
-        // 아무도 투표 안함 - 재투표 필요
-        toast.warning("투표한 사람이 없습니다. 재투표가 필요합니다!");
+        // No one voted - revote needed
+        toast.warning("No votes were cast. Revote is required!");
         setCurrentSession(prev => ({ ...prev, needsRevote: true }));
       }
     }
   }, [session.id, walletAddress, onVoteComplete, currentSession]);
 
   // Calculate time remaining
-  // 테스트용: 투표 시간을 30초로 설정 (테스트 후 삭제)
-  const TEST_MODE = true; // false로 바꾸면 원래 end_time 사용
-  const TEST_DURATION = 30; // 테스트 투표 시간 (초)
-  const [testEndTime] = useState(() => Date.now() + TEST_DURATION * 1000);
+  // Use actual end_time
+  const TEST_MODE = false;
 
   useEffect(() => {
     if (!isOpen) return;
 
     const updateTime = () => {
-      const end = TEST_MODE ? testEndTime : new Date(session.end_time).getTime();
+      const end = new Date(session.end_time).getTime();
       const now = Date.now();
       const diff = Math.max(0, Math.floor((end - now) / 1000));
       setTimeRemaining(diff);
@@ -122,67 +132,67 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
     return () => clearInterval(interval);
   }, [isOpen, session.end_time, votingPhase, handleTimeUp]);
 
-  // 테스트용 프로포절 생성 (60초 투표 기간)
+  // Create test proposal (60 second voting period)
   const handleCreateProposal = async () => {
     setIsCreatingProposal(true);
     try {
       if (!window.ethereum) {
-        throw new Error("MetaMask가 설치되어 있지 않습니다");
+        throw new Error("MetaMask is not installed");
       }
 
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const daoContract = new ethers.Contract(DAO_CONTRACT_ADDRESS, DAO_ABI, signer);
 
-      toast.info("프로포절 생성 중...");
+      toast.info("Creating proposal...");
 
-      // 60초 투표 기간으로 프로포절 생성
+      // Create proposal with 60 second voting period
       const tx = await daoContract.createProposalWithDuration(
         `Story Vote: ${session.title}`,
-        60 // 60초
+        60
       );
       const receipt = await tx.wait();
 
-      // 이벤트에서 proposalId 추출
+      // Extract proposalId from event
       const event = receipt.logs.find((log: { topics: string[] }) => log.topics[0] === ethers.id("ProposalCreated(uint256,address,string)"));
 
       if (event) {
         const proposalId = parseInt(event.topics[1], 16);
         setCreatedProposalId(proposalId);
-        toast.success(`프로포절 #${proposalId} 생성 완료!`);
+        toast.success(`Proposal #${proposalId} created!`);
       } else {
-        toast.success("프로포절 생성 완료!");
+        toast.success("Proposal created!");
       }
     } catch (error: unknown) {
       console.error("Create proposal error:", error);
-      const errorMessage = error instanceof Error ? error.message : "알 수 없는 오류";
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
       if (errorMessage.includes("user rejected")) {
-        toast.error("트랜잭션이 취소되었습니다");
+        toast.error("Transaction was cancelled");
       } else if (errorMessage.includes("Insufficient VERY")) {
-        toast.error("VERY 잔액이 부족합니다 (최소 1 VERY 필요)");
+        toast.error("Insufficient VERY balance (minimum 1 VERY required)");
       } else {
-        toast.error(`프로포절 생성 실패: ${errorMessage}`);
+        toast.error(`Proposal creation failed: ${errorMessage}`);
       }
     } finally {
       setIsCreatingProposal(false);
     }
   };
 
-  // 재투표 시작
+  // Start revote
   const handleStartRevote = async () => {
-    // 투표 상태 리셋
+    // Reset voting state
     setVotingPhase("selecting");
     setSelectedOption(null);
 
-    // 새 프로포절 생성 (60초)
-    toast.info("재투표를 위한 새 프로포절을 생성합니다...");
+    // Create new proposal (60 seconds)
+    toast.info("Creating new proposal for revote...");
     await handleCreateProposal();
   };
 
-  // Handle vote - VeryDAOIntegrated 컨트랙트 사용 (찬성/반대 방식)
+  // Handle vote - uses VeryDAOIntegrated contract (for/against method)
   const handleVote = async () => {
     if (!selectedOption) {
-      toast.error("선택지를 먼저 선택해주세요");
+      toast.error("Please select an option first");
       return;
     }
 
@@ -191,50 +201,50 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
 
     try {
       if (!window.ethereum) {
-        throw new Error("MetaMask가 설치되어 있지 않습니다");
+        throw new Error("MetaMask is not installed");
       }
 
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
 
-      // 테스트: proposalId 없으면 1 사용
+      // Test: use 1 if no proposalId
       const proposalId = session.proposalId || 1;
 
       if (isOnChainVoting) {
-        // ========== 온체인 DAO 투표 (VeryDAOIntegrated) ==========
+        // ========== On-chain DAO voting (VeryDAOIntegrated) ==========
         const daoContract = new ethers.Contract(DAO_CONTRACT_ADDRESS, DAO_ABI, signer);
 
-        toast.info("트랜잭션 처리 중...");
+        toast.info("Processing transaction...");
 
-        // vote(uint256 id, bool support) - 찬성으로 투표
-        // 스토리 선택의 경우, 선택지 선택은 Supabase에 기록하고
-        // 컨트랙트에는 참여 기록만 남김
+        // vote(uint256 id, bool support) - vote in favor
+        // For story selection, choice selection is recorded in Supabase
+        // Contract only records participation
         const tx = await daoContract.vote(proposalId, true);
         await tx.wait();
 
-        toast.success("온체인 투표가 완료되었습니다!");
+        toast.success("On-chain vote completed!");
 
-        // Supabase에 실제 선택지 기록
+        // Record actual choice in Supabase
         try {
           await VotingService.vote(session.id, selectedOption.id, walletAddress);
         } catch (cacheError) {
-          console.warn("Supabase 기록 실패:", cacheError);
+          console.warn("Supabase recording failed:", cacheError);
         }
       } else {
-        // ========== 레거시 투표 (기존 방식) ==========
+        // ========== Legacy voting (existing method) ==========
         const contract = new ethers.Contract(LEGACY_VOTING_CONTRACT_ADDRESS, LegacyVotingAbi, signer);
         const tx = await contract.VoteOnStory({ value: ethers.parseEther("0.1") });
 
-        toast.info("트랜잭션 처리 중...");
+        toast.info("Processing transaction...");
         await tx.wait();
 
-        // Supabase에 투표 기록
+        // Record vote in Supabase
         const result = await VotingService.vote(session.id, selectedOption.id, walletAddress);
 
         if (result.success) {
-          toast.success("투표가 완료되었습니다!");
+          toast.success("Vote completed!");
         } else {
-          toast.error(result.error || "투표에 실패했습니다");
+          toast.error(result.error || "Vote failed");
         }
       }
 
@@ -245,18 +255,18 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
       }
     } catch (error: unknown) {
       console.error("Vote error:", error);
-      const errorMessage = error instanceof Error ? error.message : "알 수 없는 오류";
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
       if (errorMessage.includes("user rejected")) {
-        toast.error("트랜잭션이 취소되었습니다");
+        toast.error("Transaction was cancelled");
       } else if (errorMessage.includes("Already voted")) {
-        toast.error("이미 투표하셨습니다");
+        toast.error("You have already voted");
       } else if (errorMessage.includes("No voting power")) {
-        toast.error("투표권이 없습니다 (VERY 잔액 부족)");
+        toast.error("No voting power (insufficient VERY balance)");
       } else if (errorMessage.includes("Voting inactive")) {
-        toast.error("투표가 진행 중이 아닙니다");
+        toast.error("Voting is not active");
       } else {
-        toast.error(`투표 실패: ${errorMessage}`);
+        toast.error(`Vote failed: ${errorMessage}`);
       }
     } finally {
       setIsVoting(false);
@@ -286,7 +296,12 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
           </button>
           <h2 className="text-2xl font-bold text-white">DAO 투표</h2>
           <p className="text-purple-300 text-sm mt-1">{session.title}</p>
-          {isOnChainVoting && <span className="inline-block mt-2 px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full border border-green-500/50">온체인 투표</span>}
+          {stageName && (
+            <span className="inline-block mt-2 px-3 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-full border border-blue-500/50">
+              {stageName}
+            </span>
+          )}
+          {isOnChainVoting && <span className="inline-block mt-2 ml-2 px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full border border-green-500/50">온체인 투표</span>}
         </div>
 
         {/* Content */}

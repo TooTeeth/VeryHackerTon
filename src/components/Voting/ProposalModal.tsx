@@ -1,8 +1,28 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { ethers } from "ethers";
 import { toast } from "react-toastify";
 import { VotingService, Proposal } from "../../services/voting.service";
+import NewStoryCreateAbi from "../../contracts/abi/NewStoryCreate.json";
+import { useLanguage } from "../../context/LanguageContext";
+
+// Same contract address as revive feature
+const CONTRACT_ADDRESS = "0x54507082a8BD3f4aef9a69Ae58DeAD63cAB97244";
+const VERY_CHAIN_ID = "0x1205";
+
+// VERY Mainnet network configuration
+const VERY_NETWORK_PARAMS = {
+  chainId: VERY_CHAIN_ID,
+  chainName: "VERY Mainnet",
+  nativeCurrency: {
+    name: "VERY",
+    symbol: "VERY",
+    decimals: 18,
+  },
+  rpcUrls: ["https://rpc.verylabs.io"],
+  blockExplorerUrls: ["https://veryscan.io"],
+};
 
 interface Stage {
   id: number;
@@ -25,6 +45,7 @@ export const ProposalModal: React.FC<ProposalModalProps> = ({
   walletAddress,
   onCreated,
 }) => {
+  const { t } = useLanguage();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [stages, setStages] = useState<Stage[]>([]);
@@ -33,8 +54,43 @@ export const ProposalModal: React.FC<ProposalModalProps> = ({
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [activeTab, setActiveTab] = useState<"create" | "list">("create");
   const [isLoadingProposals, setIsLoadingProposals] = useState(false);
+  const [isTransactionPending, setIsTransactionPending] = useState(false);
 
-  // 스테이지 목록 로드
+  // Stage slug -> title mapping
+  const stageMap = new Map(stages.map((s) => [s.slug, s.title || s.slug]));
+
+  // Switch to VERY chain
+  const switchToVeryChain = async () => {
+    if (!window.ethereum) {
+      toast.error(t("voting.proposalModal.noMetaMask"));
+      return false;
+    }
+    try {
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: VERY_CHAIN_ID }],
+      });
+      return true;
+    } catch (switchError: unknown) {
+      const error = switchError as { code?: number };
+      if (error.code === 4902) {
+        try {
+          await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [VERY_NETWORK_PARAMS],
+          });
+          return true;
+        } catch {
+          toast.error(t("voting.proposalModal.veryMainnetFailed"));
+          return false;
+        }
+      }
+      toast.error(t("voting.proposalModal.switchVery"));
+      return false;
+    }
+  };
+
+  // Load stage list
   useEffect(() => {
     if (isOpen) {
       VotingService.getStages().then(setStages);
@@ -45,7 +101,8 @@ export const ProposalModal: React.FC<ProposalModalProps> = ({
   const loadProposals = async () => {
     setIsLoadingProposals(true);
     try {
-      const data = await VotingService.getProposals(gameId, undefined, walletAddress);
+      // Show only my proposals
+      const data = await VotingService.getMyProposals(gameId, walletAddress);
       setProposals(data);
     } catch (error) {
       console.error("Error loading proposals:", error);
@@ -56,62 +113,94 @@ export const ProposalModal: React.FC<ProposalModalProps> = ({
 
   const handleSubmit = async () => {
     if (!title.trim()) {
-      toast.error("제목을 입력하세요");
+      toast.error(t("voting.proposalModal.enterTitle"));
       return;
     }
 
-    setIsLoading(true);
-    try {
-      const result = await VotingService.createProposal(
-        gameId,
-        title,
-        description,
-        walletAddress,
-        selectedStage?.slug
-      );
+    if (isTransactionPending || isLoading) return;
 
-      if (result.success) {
-        toast.success("제안이 등록되었습니다!");
-        onCreated();
-        // 폼 초기화
-        setTitle("");
-        setDescription("");
-        setSelectedStage(null);
-        // 제안 목록 새로고침
-        loadProposals();
-        setActiveTab("list");
+    const ethereum = window.ethereum;
+    if (!ethereum) {
+      toast.error(t("voting.proposalModal.noMetaMask"));
+      return;
+    }
+
+    // Check wallet connection
+    let accounts = await ethereum.request({ method: "eth_accounts" });
+    if (!Array.isArray(accounts) || accounts.length === 0) {
+      toast.info(t("voting.proposalModal.connectWallet"));
+      try {
+        accounts = await ethereum.request({ method: "eth_requestAccounts" });
+      } catch {
+        toast.error(t("voting.proposalModal.walletRejected"));
+        return;
+      }
+    }
+
+    // Switch to VERY chain
+    const switched = await switchToVeryChain();
+    if (!switched) return;
+
+    setIsTransactionPending(true);
+    try {
+      const provider = new ethers.BrowserProvider(ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, NewStoryCreateAbi, signer);
+
+      // Send 1 VERY to register proposal
+      toast.info(t("voting.proposalModal.txApprove"));
+      const tx = await contract.StoryCreate({ value: ethers.parseEther("1") });
+
+      toast.info(t("voting.proposalModal.txPending"));
+      const receipt = await tx.wait();
+
+      if (receipt && receipt.status === 1) {
+        // Register proposal on transaction success
+        setIsLoading(true);
+        const result = await VotingService.createProposal(
+          gameId,
+          title,
+          description,
+          walletAddress,
+          selectedStage?.slug
+        );
+
+        if (result.success) {
+          toast.success(t("voting.proposalModal.registered"));
+          onCreated();
+          // Reset form
+          setTitle("");
+          setDescription("");
+          setSelectedStage(null);
+          // Refresh proposal list
+          loadProposals();
+          setActiveTab("list");
+        } else {
+          toast.error(result.error || t("voting.proposalModal.registerFailed"));
+        }
       } else {
-        toast.error(result.error || "제안 등록에 실패했습니다");
+        toast.error(t("voting.proposalModal.txFailed"));
       }
     } catch (error) {
       console.error("Error creating proposal:", error);
-      toast.error("제안 등록에 실패했습니다");
+      toast.error(t("voting.proposalModal.txError"));
     } finally {
+      setIsTransactionPending(false);
       setIsLoading(false);
     }
   };
 
-  const handleVote = async (proposalId: number, voteType: "up" | "down") => {
-    const result = await VotingService.voteOnProposal(proposalId, walletAddress, voteType);
-    if (result.success) {
-      toast.success(voteType === "up" ? "추천했습니다!" : "비추천했습니다!");
-      loadProposals();
-    } else {
-      toast.error("투표에 실패했습니다");
-    }
-  };
-
   const getStatusBadge = (status: string) => {
-    const styles: Record<string, { bg: string; text: string; label: string }> = {
-      pending: { bg: "bg-yellow-500/20", text: "text-yellow-400", label: "검토중" },
-      approved: { bg: "bg-green-500/20", text: "text-green-400", label: "승인됨" },
-      rejected: { bg: "bg-red-500/20", text: "text-red-400", label: "거절됨" },
-      converted: { bg: "bg-purple-500/20", text: "text-purple-400", label: "투표로 전환됨" },
+    const styles: Record<string, { bg: string; text: string; labelKey: string }> = {
+      pending: { bg: "bg-yellow-500/20", text: "text-yellow-400", labelKey: "voting.proposalModal.pendingStatus" },
+      approved: { bg: "bg-green-500/20", text: "text-green-400", labelKey: "voting.proposalModal.approvedStatus" },
+      rejected: { bg: "bg-red-500/20", text: "text-red-400", labelKey: "voting.proposalModal.rejectedStatus" },
+      converted: { bg: "bg-purple-500/20", text: "text-purple-400", labelKey: "voting.proposalModal.convertedStatus" },
     };
     const style = styles[status] || styles.pending;
     return (
       <span className={`px-2 py-1 rounded-full text-xs ${style.bg} ${style.text}`}>
-        {style.label}
+        {t(style.labelKey)}
       </span>
     );
   };
@@ -123,7 +212,7 @@ export const ProposalModal: React.FC<ProposalModalProps> = ({
       <div className="bg-gray-900 rounded-2xl border border-purple-500/50 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="bg-gradient-to-r from-purple-900 to-indigo-900 p-4 flex justify-between items-center sticky top-0">
-          <h2 className="text-xl font-bold text-white">제안하기</h2>
+          <h2 className="text-xl font-bold text-white">{t("voting.proposalModal.title")}</h2>
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-all"
@@ -145,7 +234,7 @@ export const ProposalModal: React.FC<ProposalModalProps> = ({
                 : "text-gray-400 hover:text-gray-300"
             }`}
           >
-            새 제안
+            {t("voting.proposalModal.newProposal")}
           </button>
           <button
             onClick={() => setActiveTab("list")}
@@ -155,7 +244,7 @@ export const ProposalModal: React.FC<ProposalModalProps> = ({
                 : "text-gray-400 hover:text-gray-300"
             }`}
           >
-            제안 목록 ({proposals.length})
+            {t("voting.proposalModal.proposalList")} ({proposals.length})
           </button>
         </div>
 
@@ -163,33 +252,33 @@ export const ProposalModal: React.FC<ProposalModalProps> = ({
         <div className="p-6">
           {activeTab === "create" ? (
             <div className="space-y-4">
-              {/* 제목 */}
+              {/* Title */}
               <div>
-                <label className="block text-gray-400 text-sm mb-2">제안 제목 *</label>
+                <label className="block text-gray-400 text-sm mb-2">{t("voting.proposalModal.titleLabel")}</label>
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="어떤 투표를 제안하시나요?"
+                  placeholder={t("voting.proposalModal.titlePlaceholder")}
                   className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                 />
               </div>
 
-              {/* 설명 */}
+              {/* Description */}
               <div>
-                <label className="block text-gray-400 text-sm mb-2">상세 설명</label>
+                <label className="block text-gray-400 text-sm mb-2">{t("voting.proposalModal.descLabel")}</label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="제안에 대한 자세한 설명을 입력하세요 (선택)"
+                  placeholder={t("voting.proposalModal.descPlaceholder")}
                   rows={4}
                   className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
                 />
               </div>
 
-              {/* 스테이지 선택 (선택사항) */}
+              {/* Stage selection (optional) */}
               <div>
-                <label className="block text-gray-400 text-sm mb-2">관련 스테이지 (선택)</label>
+                <label className="block text-gray-400 text-sm mb-2">{t("voting.proposalModal.stageLabel")}</label>
                 <select
                   value={selectedStage?.slug || ""}
                   onChange={(e) => {
@@ -198,7 +287,7 @@ export const ProposalModal: React.FC<ProposalModalProps> = ({
                   }}
                   className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:border-purple-500"
                 >
-                  <option value="">스테이지를 선택하세요 (선택사항)</option>
+                  <option value="">{t("voting.proposalModal.stagePlaceholder")}</option>
                   {stages.map((stage) => (
                     <option key={stage.slug} value={stage.slug}>
                       {stage.title || stage.slug}
@@ -207,30 +296,41 @@ export const ProposalModal: React.FC<ProposalModalProps> = ({
                 </select>
               </div>
 
-              {/* 안내 */}
+              {/* Information */}
               <div className="p-3 bg-gray-800/50 rounded-xl border border-gray-700">
                 <p className="text-gray-400 text-sm">
-                  제안은 관리자/운영자가 검토 후 투표로 전환됩니다.
-                  다른 유저들의 추천을 많이 받으면 더 빨리 검토될 수 있습니다.
+                  {t("voting.proposalModal.costInfo")} <span className="text-purple-400 font-semibold">1 VERY</span>{t("voting.proposalModal.costSuffix")}
+                </p>
+                <p className="text-gray-500 text-xs mt-1">
+                  {t("voting.proposalModal.reviewInfo")}
                 </p>
               </div>
 
-              {/* 제출 버튼 */}
+              {/* Submit button */}
               <button
                 onClick={handleSubmit}
-                disabled={isLoading || !title}
-                className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-xl transition mt-4"
+                disabled={isLoading || isTransactionPending || !title}
+                className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-xl transition mt-4"
               >
-                {isLoading ? "제안 중..." : "제안하기"}
+                {isTransactionPending ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="animate-spin">⏳</span>
+                    {t("voting.proposalModal.txProcessing")}
+                  </span>
+                ) : isLoading ? (
+                  t("voting.proposalModal.registering")
+                ) : (
+                  t("voting.proposalModal.submitButton")
+                )}
               </button>
             </div>
           ) : (
             <div className="space-y-4">
               {isLoadingProposals ? (
-                <div className="text-center py-8 text-gray-400">로딩 중...</div>
+                <div className="text-center py-8 text-gray-400">{t("common.loading")}</div>
               ) : proposals.length === 0 ? (
                 <div className="text-center py-8 text-gray-400">
-                  아직 제안이 없습니다. 첫 번째 제안을 해보세요!
+                  {t("voting.proposalModal.noProposals")}
                 </div>
               ) : (
                 proposals.map((proposal) => (
@@ -247,37 +347,23 @@ export const ProposalModal: React.FC<ProposalModalProps> = ({
                     )}
                     {proposal.stage_slug && (
                       <p className="text-gray-500 text-xs mb-2">
-                        관련 스테이지: {proposal.stage_slug}
+                        {t("voting.proposalModal.relatedStage")}: {stageMap.get(proposal.stage_slug) || proposal.stage_slug}
                       </p>
                     )}
                     <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-700">
                       <div className="flex items-center gap-4">
-                        <button
-                          onClick={() => handleVote(proposal.id, "up")}
-                          className={`flex items-center gap-1 px-3 py-1 rounded-lg transition-all ${
-                            proposal.userVote === "up"
-                              ? "bg-green-500/30 text-green-400"
-                              : "bg-gray-700 text-gray-400 hover:bg-green-500/20 hover:text-green-400"
-                          }`}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <span className="flex items-center gap-1 text-green-400">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path d="M12 19V5M5 12l7-7 7 7"/>
                           </svg>
-                          <span>{proposal.upvotes}</span>
-                        </button>
-                        <button
-                          onClick={() => handleVote(proposal.id, "down")}
-                          className={`flex items-center gap-1 px-3 py-1 rounded-lg transition-all ${
-                            proposal.userVote === "down"
-                              ? "bg-red-500/30 text-red-400"
-                              : "bg-gray-700 text-gray-400 hover:bg-red-500/20 hover:text-red-400"
-                          }`}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <span className="font-semibold">{proposal.upvotes}</span>
+                        </span>
+                        <span className="flex items-center gap-1 text-red-400">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path d="M12 5v14M5 12l7 7 7-7"/>
                           </svg>
-                          <span>{proposal.downvotes}</span>
-                        </button>
+                          <span className="font-semibold">{proposal.downvotes}</span>
+                        </span>
                       </div>
                       <span className="text-gray-500 text-xs">
                         {new Date(proposal.created_at).toLocaleDateString()}

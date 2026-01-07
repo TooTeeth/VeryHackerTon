@@ -6,6 +6,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { Pagination } from "./Pagination";
 import PlatformFilter from "./GameFilter";
 import CreateStreamModal from "./CreateStreamModal";
+import { useLanguage } from "../../context/LanguageContext";
 
 type StreamData = {
   id: number;
@@ -26,6 +27,7 @@ type Filters = {
 };
 
 export default function PlayfirstSection() {
+  const { t } = useLanguage();
   const [games, setGames] = useState<StreamData[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
@@ -92,11 +94,11 @@ export default function PlayfirstSection() {
 
       {/* Header with Create Button */}
       <div className="pt-24 pb-5 font-bold ml-28 flex justify-between items-center pr-28">
-        <h2 className="text-4xl font-bold relative inline-block after:block after:h-0.5 after:mt-1 after:bg-gradient-to-r after:from-pink-500 after:to-purple-500 after:w-full">ALL</h2>
+        <h2 className="text-4xl font-bold relative inline-block after:block after:h-0.5 after:mt-1 after:bg-gradient-to-r after:from-pink-500 after:to-purple-500 after:w-full">{t("play.all")}</h2>
 
         {/* Create Button */}
         <button onClick={() => setIsCreateModalOpen(true)} className="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg font-semibold hover:from-pink-600 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105">
-          + Create
+          {t("play.create")}
         </button>
       </div>
 

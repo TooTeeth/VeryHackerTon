@@ -4,6 +4,7 @@ import Image from "next/image";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useLanguage } from "../../context/LanguageContext";
 
 type Game = {
   id?: number;
@@ -26,6 +27,7 @@ type Props = {
 
 export default function GameCard({ game, createMode = false, variant = "default", showPlayButton = true }: Props) {
   const router = useRouter();
+  const { t } = useLanguage();
 
   const handleCardClick = () => {
     if (!showPlayButton && game?.id && !createMode) {
@@ -48,19 +50,19 @@ export default function GameCard({ game, createMode = false, variant = "default"
       <div className="p-4 space-y-2">
         <h3 className="text-xl font-bold">{game!.title}</h3>
         <div className="text-sm text-gray-400 space-y-1">
-          <p>Title: {game!.title}</p>
-          <p>Players: {game!.players}</p>
-          <p>Era: {game!.Era}</p>
-          <p>Genre: {game!.genre}</p>
-          <p>Plan: {game!.Plan}</p>
-          <p>Schedule:{game!.Schedule}</p>
+          <p>{t("play.title")}: {game!.title}</p>
+          <p>{t("play.players")}: {game!.players}</p>
+          <p>{t("play.era")}: {game!.Era}</p>
+          <p>{t("play.genre")}: {game!.genre}</p>
+          <p>{t("play.plan")}: {game!.Plan}</p>
+          <p>{t("play.schedule")}: {game!.Schedule}</p>
         </div>
         {showPlayButton !== false && game?.link && (
           <div className="">
             <Link href={game.link}>
               <button className="relative group inline-block mt-5">
                 <span className="absolute inset-0 rounded-[1rem_0.5rem_1rem_0.5rem] bg-gradient-to-r from-pink-400 via-purple-500 to-blue-500" aria-hidden="true" />
-                <span className="relative flex items-center justify-center bg-gray-800 text-white font-bold rounded-[1rem_0.5rem_1.5rem_0.5rem] m-0.5 px-6 py-2 min-w-[10px]">Play</span>
+                <span className="relative flex items-center justify-center bg-gray-800 text-white font-bold rounded-[1rem_0.5rem_1.5rem_0.5rem] m-0.5 px-6 py-2 min-w-[10px]">{t("play.play")}</span>
               </button>
             </Link>
           </div>

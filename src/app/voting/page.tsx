@@ -3,26 +3,53 @@
 import { useState, useEffect, useCallback } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import { useWallet } from "../context/WalletContext";
-import { VotingService, VotingSessionWithOptions } from "../../services/voting.service";
-import { useDAO, FormattedProposal } from "../../hooks/useDAO";
+import { VotingService, VotingSessionWithOptions, Proposal } from "../../services/voting.service";
+import { useDAO } from "../../hooks/useDAO";
 import { CreateVotingModal } from "../../components/Voting/CreateVotingModal";
 import { ProposalModal } from "../../components/Voting/ProposalModal";
 import { VotingModal } from "../../components/Vygdrasil/VotingModal";
-import {
-  ProposalState,
-  getProposalStateLabel,
-  getProposalStateColor,
-  getProposalStateBg,
-  formatVotes,
-  formatTimeRemaining,
-  DAO_CONTRACT_ADDRESS,
-} from "../../lib/daoConfig";
+import { DAO_CONTRACT_ADDRESS } from "../../lib/daoConfig";
+import { Pagination } from "../../components/ppage/Pagination";
+import { useLanguage } from "../../context/LanguageContext";
+
+const ITEMS_PER_PAGE = 10;
+
+// Proposal status style helper
+function getProposalStatusStyle(status: string): string {
+  const styles: Record<string, string> = {
+    pending: "bg-yellow-500/20 text-yellow-400",
+    approved: "bg-green-500/20 text-green-400",
+    rejected: "bg-red-500/20 text-red-400",
+    converted: "bg-purple-500/20 text-purple-400",
+  };
+  return styles[status] || "bg-gray-500/20 text-gray-400";
+}
+
+// Proposal status label helper (returns translation key)
+function getProposalStatusKey(status: string): string {
+  const keys: Record<string, string> = {
+    pending: "voting.pending",
+    approved: "voting.approved",
+    rejected: "voting.rejected",
+    converted: "voting.approved",
+    all: "common.all",
+  };
+  return keys[status] || status;
+}
+
+// Number format helper (abbreviate large numbers)
+function formatNumber(value: bigint | number): string {
+  const num = typeof value === "bigint" ? Number(value) : value;
+  if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + "M";
+  if (num >= 1_000) return (num / 1_000).toFixed(1) + "K";
+  return num.toFixed(0);
+}
 
 type CategoryType = "mainstream" | "stream";
 type VotingStatus = "ongoing" | "ended";
 type ViewMode = "story" | "dao";
 
-// Mainstream 게임 목록 (공식 게임)
+// Mainstream game list (official games)
 const MAINSTREAM_GAMES = [
   { id: "vygddrasil", name: "Vygddrasil", color: "purple" },
   { id: "vpunk", name: "VPunk", color: "pink" },
@@ -31,56 +58,142 @@ const MAINSTREAM_GAMES = [
 
 export default function VotingPage() {
   const { wallet } = useWallet();
-  const { proposals, loading: daoLoading, treasuryBalance, votingPower } = useDAO();
+  const { votingPower } = useDAO();
+  const { t } = useLanguage();
   const [sessions, setSessions] = useState<VotingSessionWithOptions[]>([]);
-  const [loading, setLoading] = useState(true);
   const [categoryType, setCategoryType] = useState<CategoryType>("mainstream");
   const [selectedGame, setSelectedGame] = useState<string>("vygddrasil");
   const [selectedStatus, setSelectedStatus] = useState<VotingStatus>("ongoing");
   const [viewMode, setViewMode] = useState<ViewMode>("story");
 
-  // 유저 생성 게임 목록 (Stream 테이블)
+  // Treasury: vtdn_balance (based on approved proposal count)
+  const [vtdnBalance, setVtdnBalance] = useState<number>(0);
+
+  // User created game list (Stream table)
   const [userCreatedGames, setUserCreatedGames] = useState<{ id: number; title: string }[]>([]);
 
-  // 투표 생성 모달
+  // Vote creation modal
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [canCreate, setCanCreate] = useState(false);
-  // 제안 모달
+  // Proposal modal
   const [showProposalModal, setShowProposalModal] = useState(false);
-  // 투표 상세 모달
+  // Vote detail modal
   const [selectedSession, setSelectedSession] = useState<VotingSessionWithOptions | null>(null);
   const [showVotingModal, setShowVotingModal] = useState(false);
 
-  // DAO 컨트랙트 활성화 여부
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // DAO proposals (Supabase proposals table)
+  const [daoProposals, setDaoProposals] = useState<Proposal[]>([]);
+  const [selectedProposalStatus, setSelectedProposalStatus] = useState<"all" | "pending" | "approved" | "rejected">("all");
+
+  // Proposal statistics (total / approved / rejected)
+  const proposalStats = {
+    total: daoProposals.length,
+    approved: daoProposals.filter((p) => p.status === "approved" || p.status === "converted").length,
+    rejected: daoProposals.filter((p) => p.status === "rejected").length,
+  };
+
+  // Admin/Operator permission
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [processingProposalId, setProcessingProposalId] = useState<number | null>(null);
+
+  // Approval modal (voting duration selection)
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [approveTargetProposal, setApproveTargetProposal] = useState<Proposal | null>(null);
+  const [durationMode, setDurationMode] = useState<"preset" | "custom">("preset");
+  const [selectedPreset, setSelectedPreset] = useState<number>(7);
+  const [customDays, setCustomDays] = useState<number>(0);
+  const [customHours, setCustomHours] = useState<number>(0);
+  const [customMinutes, setCustomMinutes] = useState<number>(30);
+
+  // Calculate total minutes
+  const getTotalMinutes = () => {
+    if (durationMode === "preset") {
+      return selectedPreset * 24 * 60;
+    }
+    return customDays * 24 * 60 + customHours * 60 + customMinutes;
+  };
+
+  // Duration display string
+  const getDurationText = () => {
+    const totalMin = getTotalMinutes();
+    const days = Math.floor(totalMin / (24 * 60));
+    const hours = Math.floor((totalMin % (24 * 60)) / 60);
+    const mins = totalMin % 60;
+
+    const parts = [];
+    if (days > 0) parts.push(`${days}일`);
+    if (hours > 0) parts.push(`${hours}시간`);
+    if (mins > 0) parts.push(`${mins}분`);
+    return parts.length > 0 ? parts.join(" ") : "0분";
+  };
+
+  // Stage list (slug -> title, id -> title mapping)
+  const [stageMap, setStageMap] = useState<Map<string, string>>(new Map());
+  const [stageIdMap, setStageIdMap] = useState<Map<number, string>>(new Map());
+
+  // DAO contract activation status
   const isDAOActive = DAO_CONTRACT_ADDRESS.toLowerCase() !== "0x0000000000000000000000000000000000000000";
 
-  // 유저 생성 게임 목록 로드
+  // Load user created game list and stage list
   useEffect(() => {
     VotingService.getUserCreatedGames().then(setUserCreatedGames);
+    VotingService.getStages().then((stages) => {
+      const slugMap = new Map<string, string>();
+      const idMap = new Map<number, string>();
+      stages.forEach((s) => {
+        slugMap.set(s.slug, s.title || s.slug);
+        idMap.set(s.id, s.title || s.slug);
+      });
+      setStageMap(slugMap);
+      setStageIdMap(idMap);
+    });
   }, []);
 
-  // 게임별 투표 세션 로드
-  const loadSessions = useCallback(async () => {
-    setLoading(true);
-    try {
-      const gameSessions = await VotingService.getSessionsByGame(selectedGame);
-
-      if (wallet?.address) {
-        const sessionsWithUserVote = await Promise.all(
-          gameSessions.map(async (session) => {
-            const detailed = await VotingService.getSessionById(session.id, wallet.address);
-            return detailed || session;
-          })
-        );
-        setSessions(sessionsWithUserVote);
-      } else {
-        setSessions(gameSessions);
+  // Admin permission check
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (!wallet?.address) {
+        setIsAdmin(false);
+        return;
       }
+      const adminStatus = await VotingService.isAdmin(wallet.address);
+      setIsAdmin(adminStatus);
+    };
+    checkAdmin();
+  }, [wallet?.address]);
+
+  // Load DAO proposals
+  const loadDaoProposals = useCallback(async () => {
+    try {
+      // Load all proposals for statistics
+      const allData = await VotingService.getAllProposals(undefined, wallet?.address);
+      setDaoProposals(allData);
+
+      // Calculate vtdn_balance: approved proposal count (approved + converted)
+      const approvedCount = allData.filter((p) => p.status === "approved" || p.status === "converted").length;
+      setVtdnBalance(approvedCount);
+    } catch (error) {
+      console.error("Error loading DAO proposals:", error);
+    }
+  }, [wallet?.address]);
+
+  useEffect(() => {
+    if (viewMode === "dao") {
+      loadDaoProposals();
+    }
+  }, [viewMode, loadDaoProposals]);
+
+  // Load voting sessions by game (optimized: single call for all data)
+  const loadSessions = useCallback(async () => {
+    try {
+      const gameSessions = await VotingService.getSessionsByGame(selectedGame, wallet?.address);
+      setSessions(gameSessions);
     } catch (error) {
       console.error("Error loading sessions:", error);
       toast.error("투표 목록을 불러오는데 실패했습니다");
-    } finally {
-      setLoading(false);
     }
   }, [wallet?.address, selectedGame]);
 
@@ -88,7 +201,7 @@ export default function VotingPage() {
     loadSessions();
   }, [loadSessions]);
 
-  // 투표 생성 권한 체크
+  // Vote creation permission check
   useEffect(() => {
     const checkPermission = async () => {
       if (!wallet?.address) {
@@ -103,7 +216,7 @@ export default function VotingPage() {
     checkPermission();
   }, [wallet?.address, selectedGame]);
 
-  // 카테고리 변경 시 첫 번째 게임 선택
+  // Select first game when category changes
   useEffect(() => {
     if (categoryType === "mainstream") {
       setSelectedGame(MAINSTREAM_GAMES[0].id);
@@ -132,20 +245,124 @@ export default function VotingPage() {
     return new Date(endTime) < new Date();
   };
 
+  // Open approval modal
+  const openApproveModal = (proposal: Proposal) => {
+    setApproveTargetProposal(proposal);
+    setDurationMode("preset");
+    setSelectedPreset(7);
+    setCustomDays(0);
+    setCustomHours(0);
+    setCustomMinutes(30);
+    setShowApproveModal(true);
+  };
+
+  // Execute proposal approval (called from modal)
+  const handleApproveConfirm = async () => {
+    if (!approveTargetProposal || !wallet?.address || !isAdmin) return;
+
+    const totalMinutes = getTotalMinutes();
+    if (totalMinutes <= 0) {
+      toast.error("Please set the voting period");
+      return;
+    }
+
+    setProcessingProposalId(approveTargetProposal.id);
+    setShowApproveModal(false);
+
+    try {
+      const result = await VotingService.updateProposalStatus(approveTargetProposal.id, "approved", undefined, totalMinutes);
+      if (result.success) {
+        if (result.sessionId) {
+          toast.success(`Proposal approved! Voting will run for ${getDurationText()}`);
+          loadSessions();
+        } else {
+          toast.success("Proposal approved (no stage specified)");
+        }
+        await loadDaoProposals();
+      } else {
+        toast.error(result.error || "Processing failed");
+      }
+    } finally {
+      setProcessingProposalId(null);
+      setApproveTargetProposal(null);
+    }
+  };
+
+  // Proposal rejection handler (admin only)
+  const handleRejectProposal = async (proposalId: number) => {
+    if (!wallet?.address || !isAdmin) {
+      toast.error("Admin permission required");
+      return;
+    }
+    if (processingProposalId !== null) return;
+
+    setProcessingProposalId(proposalId);
+    try {
+      const result = await VotingService.updateProposalStatus(proposalId, "rejected");
+      if (result.success) {
+        toast.success("Proposal rejected");
+        await loadDaoProposals();
+      } else {
+        toast.error(result.error || "Processing failed");
+      }
+    } finally {
+      setProcessingProposalId(null);
+    }
+  };
+
+  // Proposal upvote/downvote handler
+  const [votingProposalId, setVotingProposalId] = useState<number | null>(null);
+  const handleProposalVote = async (proposalId: number, voteType: "up" | "down") => {
+    if (!wallet?.address) {
+      toast.error("Please connect your wallet");
+      return;
+    }
+    if (votingProposalId !== null) return;
+
+    setVotingProposalId(proposalId);
+    try {
+      const result = await VotingService.voteOnProposal(proposalId, wallet.address, voteType);
+      if (result.success) {
+        toast.success(voteType === "up" ? "Upvoted" : "Downvoted");
+        await loadDaoProposals();
+      } else {
+        toast.error("Vote failed");
+      }
+    } catch {
+      toast.error("Error occurred while voting");
+    } finally {
+      setVotingProposalId(null);
+    }
+  };
+
   // filter
   const filteredSessions = sessions.filter((session) => {
     const isEnded = isVotingEnded(session.end_time);
     return selectedStatus === "ongoing" ? !isEnded : isEnded;
   });
 
-  // DAO proposals filter
-  const filteredProposals = proposals.filter((p) => {
-    if (selectedStatus === "ongoing") {
-      return p.state === ProposalState.Active || p.state === ProposalState.Pending;
-    } else {
-      return p.state !== ProposalState.Active && p.state !== ProposalState.Pending;
+  // DAO proposals filter - filter by selected game + status
+  const filteredDaoProposals = daoProposals.filter((p) => {
+    // Game filter
+    if (p.game_id !== selectedGame) return false;
+
+    // Status filter
+    if (selectedProposalStatus === "all") return true;
+    if (selectedProposalStatus === "approved") {
+      // Both approved and converted are displayed as "approved"
+      return p.status === "approved" || p.status === "converted";
     }
+    return p.status === selectedProposalStatus;
   });
+
+  // Apply pagination
+  const paginatedSessions = filteredSessions.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const paginatedDaoProposals = filteredDaoProposals.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  // Reset page when filter/status changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedStatus, selectedGame, viewMode, selectedProposalStatus]);
 
   const handleSessionClick = (session: VotingSessionWithOptions) => {
     setSelectedSession(session);
@@ -156,17 +373,9 @@ export default function VotingPage() {
     setShowVotingModal(false);
     loadSessions();
     if (winningChoiceId) {
-      toast.success("투표 결과가 반영되었습니다!");
+      toast.success("Vote result has been applied!");
     }
   };
-
-  if (loading || daoLoading) {
-    return (
-      <div className="w-full min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 flex justify-center items-center">
-        <div className="text-white text-2xl">Loading...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 p-8 pt-24">
@@ -174,60 +383,50 @@ export default function VotingPage() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-4">DAO Voting</h1>
-          <p className="text-gray-400">게임 세계의 운명을 투표로 결정하세요</p>
-          <div className="flex justify-center gap-2 mt-4">
-            {isDAOActive && (
-              <span className="px-3 py-1 bg-green-500/20 text-green-400 text-xs rounded-full border border-green-500/50">
-                VeryDAOIntegrated 활성
-              </span>
-            )}
-            <span className="px-3 py-1 bg-purple-500/20 text-purple-400 text-xs rounded-full border border-purple-500/50">
-              VERY 잔액 기준 투표권
-            </span>
-          </div>
+          <h1 className="text-4xl font-bold text-white mb-4">{t("voting.title")}</h1>
+          <p className="text-gray-400">{t("voting.subtitle")}</p>
+          <div className="flex justify-center gap-2 mt-4"></div>
         </div>
 
         {/* View Mode Toggle (Story vs DAO) */}
         {isDAOActive && (
           <div className="flex justify-center gap-4 mb-8">
-            <button
-              onClick={() => setViewMode("story")}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-                viewMode === "story"
-                  ? "bg-purple-600 text-white"
-                  : "bg-gray-800/50 text-gray-400 hover:bg-gray-800"
-              }`}
-            >
-              스토리 투표
+            <button onClick={() => setViewMode("story")} className={`px-6 py-3 rounded-lg font-semibold transition-all ${viewMode === "story" ? "bg-purple-600 text-white" : "bg-gray-800/50 text-gray-400 hover:bg-gray-800"}`}>
+              Vote
             </button>
-            <button
-              onClick={() => setViewMode("dao")}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-                viewMode === "dao"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-800/50 text-gray-400 hover:bg-gray-800"
-              }`}
-            >
-              DAO 프로포절
+            <button onClick={() => setViewMode("dao")} className={`px-6 py-3 rounded-lg font-semibold transition-all ${viewMode === "dao" ? "bg-blue-600 text-white" : "bg-gray-800/50 text-gray-400 hover:bg-gray-800"}`}>
+              Proposal
             </button>
           </div>
         )}
 
         {/* DAO Stats (only in DAO mode) */}
         {viewMode === "dao" && isDAOActive && (
-          <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-2 gap-4 mb-8 px-20">
+            {/* Treasury: vtdn_balance (based on approved proposal count) */}
             <div className="bg-gray-800/80 rounded-xl p-4 text-center border border-gray-700">
-              <p className="text-gray-400 text-sm">트레저리 잔액</p>
-              <p className="text-2xl font-bold text-green-400">{formatVotes(treasuryBalance)}</p>
+              <p className="text-gray-400 text-sm">{t("voting.treasury")}</p>
+              <p className="text-2xl font-bold text-green-400">{vtdnBalance}</p>
             </div>
-            <div className="bg-gray-800/80 rounded-xl p-4 text-center border border-gray-700">
-              <p className="text-gray-400 text-sm">내 투표권</p>
-              <p className="text-2xl font-bold text-purple-400">{formatVotes(votingPower)}</p>
-            </div>
-            <div className="bg-gray-800/80 rounded-xl p-4 text-center border border-gray-700">
-              <p className="text-gray-400 text-sm">총 프로포절</p>
-              <p className="text-2xl font-bold text-white">{proposals.length}</p>
+
+            {/* Proposal statistics: total / approved / rejected */}
+            <div className="bg-gray-800/80 rounded-xl text-center border border-gray-700 p-4">
+              <div className="flex items-center justify-center gap-3 mt-1">
+                <div className="text-center">
+                  <p className="text-lg font-bold text-white">{proposalStats.total}</p>
+                  <p className="text-gray-500 text-xs">{t("voting.proposalCount")}</p>
+                </div>
+                <div className="text-gray-600">/</div>
+                <div className="text-center">
+                  <p className="text-lg font-bold text-green-400">{proposalStats.approved}</p>
+                  <p className="text-gray-500 text-xs">{t("voting.approvedCount")}</p>
+                </div>
+                <div className="text-gray-600">/</div>
+                <div className="text-center">
+                  <p className="text-lg font-bold text-red-400">{proposalStats.rejected}</p>
+                  <p className="text-gray-500 text-xs">{t("voting.rejectedCount")}</p>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -239,21 +438,13 @@ export default function VotingPage() {
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
               {/* Category Dropdown (Mainstream / Stream) */}
               <div className="flex items-center gap-3">
-                <select
-                  value={categoryType}
-                  onChange={(e) => setCategoryType(e.target.value as CategoryType)}
-                  className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white font-semibold focus:outline-none focus:border-purple-500"
-                >
+                <select value={categoryType} onChange={(e) => setCategoryType(e.target.value as CategoryType)} className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white font-semibold focus:outline-none focus:border-purple-500">
                   <option value="mainstream">Mainstream</option>
                   <option value="stream">Stream</option>
                 </select>
 
                 {/* Game Dropdown */}
-                <select
-                  value={selectedGame}
-                  onChange={(e) => setSelectedGame(e.target.value)}
-                  className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500 min-w-[180px]"
-                >
+                <select value={selectedGame} onChange={(e) => setSelectedGame(e.target.value)} className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500 min-w-[180px]">
                   {categoryType === "mainstream" ? (
                     MAINSTREAM_GAMES.map((game) => (
                       <option key={game.id} value={game.id}>
@@ -267,45 +458,49 @@ export default function VotingPage() {
                       </option>
                     ))
                   ) : (
-                    <option value="">유저 생성 게임 없음</option>
+                    <option value="">{t("voting.noUserGames")}</option>
                   )}
                 </select>
 
                 {/* Status Filter */}
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value as VotingStatus)}
-                  className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500"
-                >
-                  <option value="ongoing">진행중</option>
-                  <option value="ended">종료됨</option>
+                <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value as VotingStatus)} className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500">
+                  <option value="ongoing">{t("voting.ongoing")}</option>
+                  <option value="ended">{t("voting.ended")}</option>
                 </select>
               </div>
 
               {/* Action Buttons */}
               {wallet?.address && (
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => setShowProposalModal(true)}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition-all flex items-center gap-2"
-                  >
+                  <button onClick={() => setShowProposalModal(true)} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition-all flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                     </svg>
-                    제안
+                    {t("voting.proposal")}
                   </button>
-                  {canCreate && (
+                  <div className="relative group">
                     <button
-                      onClick={() => setShowCreateModal(true)}
-                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-all flex items-center gap-2"
+                      onClick={() => canCreate && setShowCreateModal(true)}
+                      disabled={!canCreate}
+                      className={`px-4 py-2 font-semibold rounded-lg transition-all flex items-center gap-2 ${
+                        canCreate
+                          ? "bg-purple-600 hover:bg-purple-700 text-white cursor-pointer"
+                          : "bg-gray-600 text-gray-400 cursor-not-allowed"
+                      }`}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <line x1="12" y1="5" x2="12" y2="19"></line>
                         <line x1="5" y1="12" x2="19" y2="12"></line>
                       </svg>
-                      투표 생성
+                      {t("voting.createVoting")}
                     </button>
-                  )}
+                    {!canCreate && (
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-900 text-gray-300 text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none border border-gray-700">
+                        {t("voting.noPermission")}
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -314,84 +509,52 @@ export default function VotingPage() {
             <div className="bg-gray-800/80 rounded-2xl border border-gray-700 overflow-hidden">
               {/* Table Header */}
               <div className="grid grid-cols-12 gap-4 p-4 bg-gray-900/50 border-b border-gray-700 text-gray-400 text-sm font-semibold">
-                <div className="col-span-5">제목</div>
-                <div className="col-span-2 text-center">총 투표</div>
-                <div className="col-span-2 text-center">상태</div>
-                <div className="col-span-3 text-center">남은 시간</div>
+                <div className="col-span-4">{t("voting.titleColumn")}</div>
+                <div className="col-span-2 text-center">{t("voting.stage")}</div>
+                <div className="col-span-2 text-center">{t("voting.participation")}</div>
+                <div className="col-span-2 text-center">{t("voting.status")}</div>
+                <div className="col-span-2 text-center">{t("voting.remaining")}</div>
               </div>
 
               {/* Table Body */}
               {filteredSessions.length === 0 ? (
-                <div className="p-12 text-center text-gray-500">
-                  {selectedStatus === "ongoing" ? "진행 중인 투표가 없습니다" : "종료된 투표가 없습니다"}
-                </div>
+                <div className="p-12 text-center text-gray-500">{selectedStatus === "ongoing" ? t("voting.noOngoing") : t("voting.noEnded")}</div>
               ) : (
                 <div className="divide-y divide-gray-700/50">
-                  {filteredSessions.map((session) => {
+                  {paginatedSessions.map((session) => {
                     const ended = isVotingEnded(session.end_time);
                     const userVoted = session.userVote !== undefined;
                     const hasWinner = session.winningOptionId !== undefined;
 
                     return (
-                      <div
-                        key={session.id}
-                        onClick={() => handleSessionClick(session)}
-                        className="grid grid-cols-12 gap-4 p-4 hover:bg-gray-700/30 cursor-pointer transition-all"
-                      >
+                      <div key={session.id} onClick={() => handleSessionClick(session)} className="grid grid-cols-12 gap-4 p-4 hover:bg-gray-700/30 cursor-pointer transition-all">
                         {/* Title */}
-                        <div className="col-span-5 flex items-center gap-3">
-                          <div>
-                            <p className="text-white font-medium">{session.title}</p>
-                            {session.description && (
-                              <p className="text-gray-500 text-sm truncate max-w-xs">{session.description}</p>
-                            )}
+                        <div className="col-span-4 flex items-center gap-2">
+                          <div className="min-w-0">
+                            <p className="text-white font-medium truncate">{session.title}</p>
+                            {session.description && <p className="text-gray-500 text-sm truncate">{session.description}</p>}
                           </div>
-                          {session.isOnChain && (
-                            <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">
-                              온체인
-                            </span>
-                          )}
-                          {userVoted && (
-                            <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded-full">
-                              투표함
-                            </span>
-                          )}
+                          {session.isOnChain && <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full shrink-0">{t("voting.onchain")}</span>}
+                          {userVoted && <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded-full shrink-0">{t("voting.voted")}</span>}
                         </div>
 
-                        {/* Total Votes */}
+                        {/* Stage */}
+                        <div className="col-span-2 flex items-center justify-center">
+                          <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded-full truncate">{stageIdMap.get(session.stage_id) || "-"}</span>
+                        </div>
+
+                        {/* Participation (unique wallets) */}
                         <div className="col-span-2 flex items-center justify-center">
                           <span className="text-white font-bold">{session.totalVotes}</span>
                           <span className="text-gray-500 text-sm ml-1">/ {session.eligibleVoters || "?"}</span>
                         </div>
 
                         {/* Status */}
-                        <div className="col-span-2 flex items-center justify-center">
-                          {ended ? (
-                            hasWinner ? (
-                              <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-semibold">
-                                결정됨
-                              </span>
-                            ) : session.needsRevote ? (
-                              <span className="px-3 py-1 bg-red-500/20 text-red-400 text-xs rounded-full font-semibold">
-                                재투표 필요
-                              </span>
-                            ) : (
-                              <span className="px-3 py-1 bg-gray-600/50 text-gray-400 text-xs rounded-full font-semibold">
-                                종료
-                              </span>
-                            )
-                          ) : (
-                            <span className="px-3 py-1 bg-green-500/20 text-green-400 text-xs rounded-full font-semibold">
-                              진행중
-                            </span>
-                          )}
-                        </div>
+                        <div className="col-span-2 flex items-center justify-center">{ended ? hasWinner ? <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-semibold">{t("voting.decided")}</span> : session.needsRevote ? <span className="px-3 py-1 bg-red-500/20 text-red-400 text-xs rounded-full font-semibold">{t("voting.revoteNeeded")}</span> : <span className="px-3 py-1 bg-gray-600/50 text-gray-400 text-xs rounded-full font-semibold">{t("voting.ended")}</span> : <span className="px-3 py-1 bg-green-500/20 text-green-400 text-xs rounded-full font-semibold">{t("voting.ongoing")}</span>}</div>
 
                         {/* Time Remaining */}
-                        <div className="col-span-3 flex items-center justify-center">
-                          <span className={`font-medium ${ended ? "text-gray-500" : "text-white"}`}>
-                            {getTimeRemaining(session.end_time)}
-                          </span>
+                        <div className="col-span-2 flex items-center justify-center">
+                          <span className={`font-medium text-sm ${ended ? "text-gray-500" : "text-white"}`}>{getTimeRemaining(session.end_time)}</span>
                         </div>
                       </div>
                     );
@@ -399,41 +562,161 @@ export default function VotingPage() {
                 </div>
               )}
             </div>
+
+            {/* Pagination for Story */}
+            {filteredSessions.length > ITEMS_PER_PAGE && (
+              <div className="mt-6">
+                <Pagination totalItems={filteredSessions.length} itemsPerPage={ITEMS_PER_PAGE} currentPage={currentPage} setCurrentPage={setCurrentPage} variant="dark" />
+              </div>
+            )}
           </>
         )}
 
         {/* DAO Proposals View */}
         {viewMode === "dao" && (
           <>
-            {/* Status Filter for DAO */}
-            <div className="flex justify-center gap-4 mb-8">
-              <button
-                onClick={() => setSelectedStatus("ongoing")}
-                className={`px-8 py-3 rounded-lg font-semibold transition-all ${
-                  selectedStatus === "ongoing" ? "bg-green-600 text-white" : "bg-gray-800/50 text-gray-400 hover:bg-gray-800"
-                }`}
-              >
-                진행중
-              </button>
-              <button
-                onClick={() => setSelectedStatus("ended")}
-                className={`px-8 py-3 rounded-lg font-semibold transition-all ${
-                  selectedStatus === "ended" ? "bg-gray-600 text-white" : "bg-gray-800/50 text-gray-400 hover:bg-gray-800"
-                }`}
-              >
-                종료됨
-              </button>
+            {/* Category & Status Filter for DAO */}
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+              <div className="flex items-center gap-3">
+                {/* Category Dropdown (Mainstream / Stream) */}
+                <select value={categoryType} onChange={(e) => setCategoryType(e.target.value as CategoryType)} className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white font-semibold focus:outline-none focus:border-purple-500">
+                  <option value="mainstream">Mainstream</option>
+                  <option value="stream">Stream</option>
+                </select>
+
+                {/* Game Dropdown */}
+                <select value={selectedGame} onChange={(e) => setSelectedGame(e.target.value)} className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500 min-w-[180px]">
+                  {categoryType === "mainstream" ? (
+                    MAINSTREAM_GAMES.map((game) => (
+                      <option key={game.id} value={game.id}>
+                        {game.name}
+                      </option>
+                    ))
+                  ) : userCreatedGames.length > 0 ? (
+                    userCreatedGames.map((game) => (
+                      <option key={game.id} value={`stream_${game.id}`}>
+                        {game.title}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">{t("voting.noUserGames")}</option>
+                  )}
+                </select>
+
+                {/* Status Filter */}
+                <select value={selectedProposalStatus} onChange={(e) => setSelectedProposalStatus(e.target.value as typeof selectedProposalStatus)} className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500">
+                  <option value="all">{t("common.all")}</option>
+                  <option value="pending">{t("voting.pending")}</option>
+                  <option value="approved">{t("voting.approved")}</option>
+                  <option value="rejected">{t("voting.rejected")}</option>
+                </select>
+              </div>
+
+              {/* Action Button */}
+              {wallet?.address && (
+                <button onClick={() => setShowProposalModal(true)} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition-all flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                  {t("voting.proposal")}
+                </button>
+              )}
             </div>
 
-            {filteredProposals.length === 0 ? (
-              <div className="text-center py-20">
-                <p className="text-gray-400 text-lg">{selectedStatus === "ongoing" ? "현재 진행 중인 프로포절이 없습니다" : "종료된 프로포절이 없습니다"}</p>
+            {/* Proposals Table */}
+            <div className="bg-gray-800/80 rounded-2xl border border-gray-700 overflow-hidden overflow-x-auto">
+              {/* Table Header */}
+              <div className="flex items-center gap-4 p-4 bg-gray-900/50 border-b border-gray-700 text-gray-400 text-sm font-semibold min-w-[900px]">
+                <div className="w-[180px] shrink-0">{t("voting.titleColumn")}</div>
+                <div className="w-[100px] shrink-0 text-center">{t("voting.stage")}</div>
+                <div className="flex-1 min-w-[150px]">{t("voting.proposalContent")}</div>
+                <div className="w-[100px] shrink-0 text-center">{t("voting.upvoteDownvote")}</div>
+                <div className="w-[90px] shrink-0 text-center">{t("voting.proposalDate")}</div>
+                <div className="w-[180px] shrink-0 text-center">{isAdmin ? t("voting.statusAdmin") : t("voting.status")}</div>
               </div>
-            ) : (
-              <div className="space-y-6">
-                {filteredProposals.map((proposal) => (
-                  <DAOProposalCard key={proposal.id} proposal={proposal} />
-                ))}
+
+              {/* Table Body */}
+              {filteredDaoProposals.length === 0 ? (
+                <div className="p-12 text-center text-gray-500">{selectedProposalStatus === "all" ? t("voting.noProposals") : `${t(getProposalStatusKey(selectedProposalStatus))} ${t("voting.noProposalsStatus")}`}</div>
+              ) : (
+                <div className="divide-y divide-gray-700/50">
+                  {paginatedDaoProposals.map((proposal) => (
+                    <div key={proposal.id} className="flex items-center gap-4 p-4 hover:bg-gray-700/30 transition-all min-w-[900px]">
+                      {/* Title */}
+                      <div className="w-[180px] shrink-0">
+                        <p className="text-white font-medium text-sm truncate">{proposal.title}</p>
+                        <p className="text-gray-600 text-xs mt-1">
+                          {proposal.proposer_wallet.slice(0, 6)}...{proposal.proposer_wallet.slice(-4)}
+                        </p>
+                      </div>
+
+                      {/* Stage */}
+                      <div className="w-[100px] shrink-0 flex justify-center">{proposal.stage_slug ? <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded-full truncate">{stageMap.get(proposal.stage_slug) || proposal.stage_slug}</span> : <span className="text-gray-600 text-xs">-</span>}</div>
+
+                      {/* Description */}
+                      <div className="flex-1 min-w-[150px]">
+                        <p className="text-gray-400 text-sm truncate">{proposal.description || "-"}</p>
+                      </div>
+
+                      {/* Votes - clickable buttons */}
+                      <div className="w-[100px] shrink-0 flex items-center justify-center gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleProposalVote(proposal.id, "up");
+                          }}
+                          disabled={votingProposalId === proposal.id || proposal.userVote === "up"}
+                          className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-all ${proposal.userVote === "up" ? "bg-green-500/30 text-green-300 cursor-default" : votingProposalId === proposal.id ? "text-gray-500 cursor-wait" : "text-green-400 hover:bg-green-500/20 cursor-pointer"}`}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M12 19V5M5 12l7-7 7 7" />
+                          </svg>
+                          {proposal.upvotes}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleProposalVote(proposal.id, "down");
+                          }}
+                          disabled={votingProposalId === proposal.id || proposal.userVote === "down"}
+                          className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-all ${proposal.userVote === "down" ? "bg-red-500/30 text-red-300 cursor-default" : votingProposalId === proposal.id ? "text-gray-500 cursor-wait" : "text-red-400 hover:bg-red-500/20 cursor-pointer"}`}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M12 5v14M5 12l7 7 7-7" />
+                          </svg>
+                          {proposal.downvotes}
+                        </button>
+                      </div>
+
+                      {/* Date */}
+                      <div className="w-[90px] shrink-0 flex justify-center">
+                        <span className="text-gray-400 text-xs">{new Date(proposal.created_at).toLocaleDateString("ko-KR")}</span>
+                      </div>
+
+                      {/* Status & Admin Actions */}
+                      <div className="w-[180px] shrink-0 flex items-center justify-center gap-2">
+                        <span className={`px-3 py-1 text-xs rounded-full font-semibold ${getProposalStatusStyle(proposal.status)}`}>{t(getProposalStatusKey(proposal.status))}</span>
+                        {isAdmin && proposal.status === "pending" && (
+                          <>
+                            <button onClick={() => openApproveModal(proposal)} disabled={processingProposalId === proposal.id} className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${processingProposalId === proposal.id ? "bg-gray-600 text-gray-400 cursor-wait" : "bg-green-500/20 text-green-400 hover:bg-green-500/40"}`}>
+                              {t("voting.approve")}
+                            </button>
+                            <button onClick={() => handleRejectProposal(proposal.id)} disabled={processingProposalId === proposal.id} className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${processingProposalId === proposal.id ? "bg-gray-600 text-gray-400 cursor-wait" : "bg-red-500/20 text-red-400 hover:bg-red-500/40"}`}>
+                              {t("voting.reject")}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Pagination for DAO */}
+            {filteredDaoProposals.length > ITEMS_PER_PAGE && (
+              <div className="mt-6">
+                <Pagination totalItems={filteredDaoProposals.length} itemsPerPage={ITEMS_PER_PAGE} currentPage={currentPage} setCurrentPage={setCurrentPage} variant="dark" />
               </div>
             )}
           </>
@@ -441,30 +724,30 @@ export default function VotingPage() {
 
         {/* Info Box */}
         <div className="mt-12 p-6 bg-gray-800/50 rounded-xl border border-gray-700">
-          <h3 className="text-base font-semibold text-white mb-3">투표 안내</h3>
+          <h3 className="text-base font-semibold text-white mb-3">{t("voting.votingGuide")}</h3>
           <ul className="text-gray-400 space-y-2 text-sm">
-            <li className="text-yellow-400 font-semibold">투표는 게임 플레이 중 해당 선택지에서만 가능합니다</li>
-            <li className="text-green-400">온체인 투표: 블록체인에 영구 기록되며 투명하게 검증 가능합니다</li>
-            <li>이 페이지에서는 현재 진행 중인 투표 현황을 확인할 수 있습니다</li>
-            <li>지갑 주소당 1회 투표 가능합니다</li>
-            <li>투표 종료 후 과반수를 득표한 선택지만 게임에서 선택할 수 있습니다</li>
-            <li>과반수를 득표하지 못한 경우 재투표가 필요합니다</li>
+            <li className="text-yellow-400 font-semibold">{t("voting.guide1")}</li>
+            <li className="text-green-400">{t("voting.guide2")}</li>
+            <li>{t("voting.guide3")}</li>
+            <li>{t("voting.guide4")}</li>
+            <li>{t("voting.guide5")}</li>
+            <li>{t("voting.guide6")}</li>
           </ul>
 
           {/* DAO Info */}
           {isDAOActive && (
             <div className="mt-6 pt-4 border-t border-gray-700">
-              <h4 className="text-sm font-semibold text-white mb-2">VeryDAOIntegrated 컨트랙트</h4>
+              <h4 className="text-sm font-semibold text-white mb-2">{t("voting.daoContract")}</h4>
               <div className="bg-gray-700/50 rounded-lg p-3">
                 <p className="text-gray-400 text-xs font-mono break-all">{DAO_CONTRACT_ADDRESS}</p>
                 <div className="mt-2 flex gap-4">
                   <div>
-                    <span className="text-gray-500 text-xs">투표 기간:</span>
-                    <span className="text-white text-xs ml-2">3일</span>
+                    <span className="text-gray-500 text-xs">{t("voting.votingPeriod")}:</span>
+                    <span className="text-white text-xs ml-2">{t("voting.threeDays")}</span>
                   </div>
                   <div>
-                    <span className="text-gray-500 text-xs">프로포절 생성 조건:</span>
-                    <span className="text-white text-xs ml-2">최소 1 VERY 보유</span>
+                    <span className="text-gray-500 text-xs">{t("voting.proposalRequirement")}:</span>
+                    <span className="text-white text-xs ml-2">{t("voting.minVery")}</span>
                   </div>
                 </div>
               </div>
@@ -473,114 +756,113 @@ export default function VotingPage() {
         </div>
       </div>
 
-      {/* 투표 생성 모달 */}
-      {wallet?.address && (
-        <CreateVotingModal
-          isOpen={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
-          gameId={selectedGame}
-          walletAddress={wallet.address}
-          onCreated={loadSessions}
-        />
-      )}
+      {/* Vote creation modal */}
+      {wallet?.address && <CreateVotingModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} gameId={selectedGame} walletAddress={wallet.address} onCreated={loadSessions} />}
 
-      {/* 제안 모달 */}
-      {wallet?.address && (
-        <ProposalModal
-          isOpen={showProposalModal}
-          onClose={() => setShowProposalModal(false)}
-          gameId={selectedGame}
-          walletAddress={wallet.address}
-          onCreated={loadSessions}
-        />
-      )}
+      {/* Proposal modal */}
+      {wallet?.address && <ProposalModal isOpen={showProposalModal} onClose={() => setShowProposalModal(false)} gameId={selectedGame} walletAddress={wallet.address} onCreated={loadSessions} />}
 
-      {/* 투표 상세 모달 */}
-      {selectedSession && wallet?.address && (
-        <VotingModal
-          isOpen={showVotingModal}
-          onClose={() => setShowVotingModal(false)}
-          session={selectedSession}
-          walletAddress={wallet.address}
-          onVoteComplete={handleVoteComplete}
-        />
-      )}
-    </div>
-  );
-}
+      {/* Vote detail modal */}
+      {selectedSession && wallet?.address && <VotingModal isOpen={showVotingModal} onClose={() => setShowVotingModal(false)} session={selectedSession} walletAddress={wallet.address} onVoteComplete={handleVoteComplete} />}
 
-// DAO Proposal Card Component
-function DAOProposalCard({ proposal }: { proposal: FormattedProposal }) {
-  const totalVotes = proposal.totalVotes;
+      {/* Approval modal (voting duration selection) */}
+      {showApproveModal && approveTargetProposal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-2xl p-6 w-full max-w-md border border-gray-700">
+            <h3 className="text-xl font-bold text-white mb-4">{t("voting.approveConfirm")}</h3>
 
-  return (
-    <div className="bg-gray-800/80 backdrop-blur rounded-2xl p-6 border border-gray-700 shadow-xl">
-      {/* Header */}
-      <div className="flex justify-between items-start mb-4">
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <span className="text-gray-500 text-sm">#{proposal.id}</span>
-            <span className={`px-2 py-1 text-xs rounded-full border ${getProposalStateBg(proposal.state)} ${getProposalStateColor(proposal.state)}`}>
-              {getProposalStateLabel(proposal.state)}
-            </span>
-            {proposal.hasVoted && (
-              <span className="px-2 py-1 bg-purple-500/20 text-purple-400 text-xs rounded-full border border-purple-500/50">
-                투표완료
-              </span>
+            <div className="mb-4 p-3 bg-gray-700/50 rounded-lg">
+              <p className="text-white font-medium">{approveTargetProposal.title}</p>
+              <p className="text-gray-400 text-sm mt-1">{approveTargetProposal.description || "-"}</p>
+            </div>
+
+            {/* Mode selection tabs */}
+            <div className="flex mb-4 bg-gray-700/50 rounded-lg p-1">
+              <button onClick={() => setDurationMode("preset")} className={`flex-1 py-2 rounded-md text-sm font-semibold transition-all ${durationMode === "preset" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}>
+                {t("voting.preset")}
+              </button>
+              <button onClick={() => setDurationMode("custom")} className={`flex-1 py-2 rounded-md text-sm font-semibold transition-all ${durationMode === "custom" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}>
+                {t("voting.custom")}
+              </button>
+            </div>
+
+            {/* Preset mode */}
+            {durationMode === "preset" && (
+              <div className="mb-6">
+                <label className="block text-gray-400 text-sm mb-2">{t("voting.selectDuration")}</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[1, 3, 7, 14].map((days) => (
+                    <button key={days} onClick={() => setSelectedPreset(days)} className={`py-2 px-3 rounded-lg text-sm font-semibold transition-all ${selectedPreset === days ? "bg-purple-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"}`}>
+                      {days}{t("voting.days")}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
-          </div>
-          <p className="text-white text-lg">{proposal.description}</p>
-          <p className="text-gray-500 text-sm mt-1">
-            제안자: {proposal.proposer.slice(0, 6)}...{proposal.proposer.slice(-4)}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-gray-400 text-sm">
-            {proposal.isActive ? formatTimeRemaining(BigInt(Math.floor(proposal.endTime.getTime() / 1000))) : "종료됨"}
-          </p>
-        </div>
-      </div>
 
-      {/* Vote Bars */}
-      <div className="space-y-3">
-        {/* For */}
-        <div className="relative rounded-lg overflow-hidden bg-gray-700/50">
-          <div
-            className="absolute inset-y-0 left-0 bg-green-500/30"
-            style={{ width: `${proposal.forPercentage}%` }}
-          />
-          <div className="relative p-3 flex justify-between items-center">
-            <span className="text-green-400 font-semibold">찬성</span>
-            <div className="flex items-center gap-3">
-              <span className="text-white font-bold">{formatVotes(proposal.forVotes)}</span>
-              <span className="text-gray-400 text-sm">({proposal.forPercentage}%)</span>
+            {/* Custom mode */}
+            {durationMode === "custom" && (
+              <div className="mb-6">
+                <label className="block text-gray-400 text-sm mb-2">{t("voting.customDuration")}</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {/* Days */}
+                  <div>
+                    <label className="block text-gray-500 text-xs mb-1">{t("voting.days")}</label>
+                    <select value={customDays} onChange={(e) => setCustomDays(Number(e.target.value))} className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500">
+                      {Array.from({ length: 31 }, (_, i) => (
+                        <option key={i} value={i}>
+                          {i}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* Hours */}
+                  <div>
+                    <label className="block text-gray-500 text-xs mb-1">{t("voting.hours")}</label>
+                    <select value={customHours} onChange={(e) => setCustomHours(Number(e.target.value))} className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500">
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <option key={i} value={i}>
+                          {i}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* Minutes */}
+                  <div>
+                    <label className="block text-gray-500 text-xs mb-1">{t("voting.minutes")}</label>
+                    <select value={customMinutes} onChange={(e) => setCustomMinutes(Number(e.target.value))} className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500">
+                      {[0, 1, 2, 3, 4, 5, 10, 15, 20, 30, 35, 40, 45, 50, 55].map((min) => (
+                        <option key={min} value={min}>
+                          {min}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                {/* Display configured duration */}
+                <p className="text-center text-purple-400 text-sm mt-3">
+                  {t("voting.setting")}: <span className="font-semibold">{getDurationText()}</span>
+                </p>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowApproveModal(false);
+                  setApproveTargetProposal(null);
+                }}
+                className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition-all"
+              >
+                {t("common.cancel")}
+              </button>
+              <button onClick={handleApproveConfirm} disabled={getTotalMinutes() <= 0} className={`flex-1 py-2 font-semibold rounded-lg transition-all ${getTotalMinutes() > 0 ? "bg-green-600 hover:bg-green-700 text-white" : "bg-gray-600 text-gray-400 cursor-not-allowed"}`}>
+                {getDurationText()} {t("voting.startVoting")}
+              </button>
             </div>
           </div>
         </div>
-
-        {/* Against */}
-        <div className="relative rounded-lg overflow-hidden bg-gray-700/50">
-          <div
-            className="absolute inset-y-0 left-0 bg-red-500/30"
-            style={{ width: `${proposal.againstPercentage}%` }}
-          />
-          <div className="relative p-3 flex justify-between items-center">
-            <span className="text-red-400 font-semibold">반대</span>
-            <div className="flex items-center gap-3">
-              <span className="text-white font-bold">{formatVotes(proposal.againstVotes)}</span>
-              <span className="text-gray-400 text-sm">({proposal.againstPercentage}%)</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Total Votes */}
-      <div className="mt-4 pt-4 border-t border-gray-700 flex justify-between items-center">
-        <span className="text-gray-400 text-sm">총 투표: {formatVotes(totalVotes)}</span>
-        <span className="text-gray-500 text-sm">
-          {proposal.startTime.toLocaleDateString()} - {proposal.endTime.toLocaleDateString()}
-        </span>
-      </div>
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { VotingService } from "../../services/voting.service";
+import { useLanguage } from "../../context/LanguageContext";
 
 interface Stage {
   id: number;
@@ -30,24 +31,25 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
   walletAddress,
   onCreated,
 }) => {
+  const { t } = useLanguage();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [stages, setStages] = useState<Stage[]>([]);
   const [selectedStage, setSelectedStage] = useState<Stage | null>(null);
   const [choices, setChoices] = useState<Choice[]>([]);
   const [selectedChoices, setSelectedChoices] = useState<number[]>([]);
-  const [durationMinutes, setDurationMinutes] = useState(60); // 기본 1시간
+  const [durationMinutes, setDurationMinutes] = useState(60);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingChoices, setIsLoadingChoices] = useState(false);
 
-  // 스테이지 목록 로드
+  // Load stage list
   useEffect(() => {
     if (isOpen) {
       VotingService.getStages().then(setStages);
     }
   }, [isOpen]);
 
-  // 스테이지 선택 시 선택지 로드
+  // Load choices when stage is selected
   useEffect(() => {
     if (selectedStage) {
       setIsLoadingChoices(true);
@@ -72,15 +74,15 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
 
   const handleSubmit = async () => {
     if (!title.trim()) {
-      toast.error("제목을 입력하세요");
+      toast.error(t("voting.createModal.enterTitle"));
       return;
     }
     if (!selectedStage) {
-      toast.error("스테이지를 선택하세요");
+      toast.error(t("voting.createModal.selectStage"));
       return;
     }
     if (selectedChoices.length < 2) {
-      toast.error("최소 2개의 선택지를 선택하세요");
+      toast.error(t("voting.createModal.minChoices"));
       return;
     }
 
@@ -96,20 +98,20 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
       );
 
       if (result.success) {
-        toast.success("투표가 생성되었습니다!");
+        toast.success(t("voting.createModal.created"));
         onCreated();
         onClose();
-        // 폼 초기화
+        // Reset form
         setTitle("");
         setDescription("");
         setSelectedStage(null);
         setSelectedChoices([]);
       } else {
-        toast.error(result.error || "투표 생성에 실패했습니다");
+        toast.error(result.error || t("voting.createModal.failed"));
       }
     } catch (error) {
       console.error("Error creating voting:", error);
-      toast.error("투표 생성에 실패했습니다");
+      toast.error(t("voting.createModal.failed"));
     } finally {
       setIsLoading(false);
     }
@@ -122,7 +124,7 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
       <div className="bg-gray-900 rounded-2xl border border-purple-500/50 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="bg-gradient-to-r from-purple-900 to-indigo-900 p-4 flex justify-between items-center sticky top-0">
-          <h2 className="text-xl font-bold text-white">투표 생성</h2>
+          <h2 className="text-xl font-bold text-white">{t("voting.createModal.title")}</h2>
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-all"
@@ -136,33 +138,33 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
 
         {/* Content */}
         <div className="p-6 space-y-4">
-          {/* 제목 */}
+          {/* Title */}
           <div>
-            <label className="block text-gray-400 text-sm mb-2">제목 *</label>
+            <label className="block text-gray-400 text-sm mb-2">{t("voting.createModal.titleLabel")}</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="투표 제목을 입력하세요"
+              placeholder={t("voting.createModal.titlePlaceholder")}
               className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
             />
           </div>
 
-          {/* 설명 */}
+          {/* Description */}
           <div>
-            <label className="block text-gray-400 text-sm mb-2">설명</label>
+            <label className="block text-gray-400 text-sm mb-2">{t("voting.createModal.descLabel")}</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="투표 설명을 입력하세요 (선택)"
+              placeholder={t("voting.createModal.descPlaceholder")}
               rows={3}
               className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
             />
           </div>
 
-          {/* 스테이지 선택 */}
+          {/* Stage selection */}
           <div>
-            <label className="block text-gray-400 text-sm mb-2">스테이지 *</label>
+            <label className="block text-gray-400 text-sm mb-2">{t("voting.createModal.stageLabel")}</label>
             <select
               value={selectedStage?.slug || ""}
               onChange={(e) => {
@@ -171,7 +173,7 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
               }}
               className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:border-purple-500"
             >
-              <option value="">스테이지를 선택하세요</option>
+              <option value="">{t("voting.createModal.stagePlaceholder")}</option>
               {stages.map((stage) => (
                 <option key={stage.slug} value={stage.slug}>
                   {stage.title || stage.slug}
@@ -180,17 +182,17 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
             </select>
           </div>
 
-          {/* 선택지 */}
+          {/* Choices */}
           {selectedStage && (
             <div>
               <label className="block text-gray-400 text-sm mb-2">
-                선택지 * (최소 2개)
+                {t("voting.createModal.choicesLabel")}
               </label>
               {isLoadingChoices ? (
-                <div className="text-gray-500 text-center py-4">로딩 중...</div>
+                <div className="text-gray-500 text-center py-4">{t("common.loading")}</div>
               ) : choices.length === 0 ? (
                 <div className="text-gray-500 text-center py-4">
-                  이 스테이지에 선택지가 없습니다
+                  {t("voting.createModal.noChoices")}
                 </div>
               ) : (
                 <div className="space-y-2 max-h-40 overflow-y-auto">
@@ -217,16 +219,16 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
             </div>
           )}
 
-          {/* 투표 기간 */}
+          {/* Voting duration */}
           <div>
-            <label className="block text-gray-400 text-sm mb-2">투표 기간</label>
+            <label className="block text-gray-400 text-sm mb-2">{t("voting.createModal.duration")}</label>
             <div className="flex gap-2">
               {[
-                { label: "1시간", value: 60 },
-                { label: "6시간", value: 360 },
-                { label: "1일", value: 1440 },
-                { label: "3일", value: 4320 },
-                { label: "7일", value: 10080 },
+                { label: `1${t("voting.createModal.hour")}`, value: 60 },
+                { label: `6${t("voting.createModal.hour")}`, value: 360 },
+                { label: `1${t("voting.createModal.day")}`, value: 1440 },
+                { label: `3${t("voting.createModal.day")}`, value: 4320 },
+                { label: `7${t("voting.createModal.day")}`, value: 10080 },
               ].map((option) => (
                 <button
                   key={option.value}
@@ -243,13 +245,13 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
             </div>
           </div>
 
-          {/* 생성 버튼 */}
+          {/* Create button */}
           <button
             onClick={handleSubmit}
             disabled={isLoading || !title || !selectedStage || selectedChoices.length < 2}
             className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-xl transition mt-4"
           >
-            {isLoading ? "생성 중..." : "투표 생성"}
+            {isLoading ? t("voting.createModal.creating") : t("voting.createModal.title")}
           </button>
         </div>
       </div>

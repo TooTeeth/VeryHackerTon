@@ -1,5 +1,5 @@
 // services/voting.service.ts
-// 온체인 우선 + Supabase 캐싱 하이브리드 버전
+// On-chain first + Supabase caching hybrid version
 
 import { supabase } from "../lib/supabaseClient";
 
@@ -14,8 +14,8 @@ export interface VotingSession {
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  // 온체인 데이터 추가
-  proposalId?: number; // 온체인 proposal ID
+  // On-chain data
+  proposalId?: number;
   isOnChain?: boolean;
 }
 
@@ -40,14 +40,14 @@ export interface Vote {
 export interface VotingSessionWithOptions extends VotingSession {
   options: VotingOption[];
   totalVotes: number;
-  eligibleVoters: number; // 총 투표 가능자 수
+  eligibleVoters: number;
   userVote?: number;
   winningOptionId?: number;
-  needsRevote?: boolean; // 과반수 미달 시 재투표 필요
+  needsRevote?: boolean;
   game_id?: string;
 }
 
-// ========== 제안 관련 TYPES ==========
+// ========== PROPOSAL TYPES ==========
 export interface Proposal {
   id: number;
   game_id: string;
@@ -62,18 +62,17 @@ export interface Proposal {
   converted_session_id?: number;
   created_at: string;
   updated_at: string;
-  // 추가 정보
   userVote?: 'up' | 'down' | null;
 }
 
-// 공식 게임 목록
+// Official game list
 export const OFFICIAL_GAMES = ['vygddrasil', 'vpunk', 'obfuscate'] as const;
 export type OfficialGame = typeof OFFICIAL_GAMES[number];
 
 // ========== VOTING SERVICE ==========
 export class VotingService {
   /**
-   * 모든 활성 투표 세션 가져오기
+   * Get all active voting sessions
    */
   static async getActiveSessions(): Promise<VotingSessionWithOptions[]> {
     try {
@@ -90,7 +89,7 @@ export class VotingService {
 
       if (!sessions || sessions.length === 0) return [];
 
-      // 총 투표 가능자 수 = 비그드라실에 캐릭터를 하나라도 생성한 고유 지갑 수
+      // Total eligible voters = unique wallets that created at least one character
       const { data: uniqueWallets } = await supabase
         .from("vygddrasilclass")
         .select("wallet_address");
@@ -136,15 +135,14 @@ export class VotingService {
   }
 
   /**
-   * 특정 세션의 상세 정보 가져오기
+   * Get session details by ID
    */
   static async getSessionById(sessionId: number, walletAddress?: string): Promise<VotingSessionWithOptions | null> {
-    // Supabase에서 세션 로드
     return this.getSessionByIdFromSupabase(sessionId, walletAddress);
   }
 
   /**
-   * Supabase에서 세션 가져오기 (fallback)
+   * Get session from Supabase (fallback)
    */
   private static async getSessionByIdFromSupabase(
     sessionId: number,
@@ -167,12 +165,12 @@ export class VotingService {
 
       const totalVotes = (options || []).reduce((sum, opt) => sum + (opt.vote_count || 0), 0);
 
-      // 총 투표 가능자 수 = 비그드라실에 캐릭터를 하나라도 생성한 고유 지갑 수
+      // Total eligible voters = unique wallets that created at least one character
       const { data: uniqueWallets } = await supabase
         .from("vygddrasilclass")
         .select("wallet_address");
 
-      // 고유 지갑 주소만 카운트
+      // Count only unique wallet addresses
       const uniqueWalletSet = new Set((uniqueWallets || []).map(w => w.wallet_address?.toLowerCase()));
       const eligibleVoters = uniqueWalletSet.size;
 
@@ -213,7 +211,7 @@ export class VotingService {
   }
 
   /**
-   * 투표하기 - 온체인 우선
+   * Vote - on-chain first
    */
   static async vote(
     sessionId: number,
@@ -221,11 +219,11 @@ export class VotingService {
     walletAddress: string,
     characterId?: number
   ): Promise<{ success: boolean; error?: string }> {
-    // 온체인 투표는 VotingModal.tsx에서 직접 처리
-    // 이 함수는 Supabase 캐싱용으로 유지
+    // On-chain voting is handled directly in VotingModal.tsx
+    // This function is maintained for Supabase caching
 
     try {
-      // 세션 확인
+      // Verify session
       const { data: session } = await supabase
         .from("voting_sessions")
         .select("*")
@@ -233,18 +231,18 @@ export class VotingService {
         .single();
 
       if (!session) {
-        return { success: false, error: "투표 세션을 찾을 수 없습니다" };
+        return { success: false, error: "Voting session not found" };
       }
 
       const now = new Date();
       if (now < new Date(session.start_time)) {
-        return { success: false, error: "투표가 아직 시작되지 않았습니다" };
+        return { success: false, error: "Voting has not started yet" };
       }
       if (now > new Date(session.end_time)) {
-        return { success: false, error: "투표가 종료되었습니다" };
+        return { success: false, error: "Voting has ended" };
       }
 
-      // 중복 투표 확인
+      // Check duplicate vote
       const { data: existingVote } = await supabase
         .from("votes")
         .select("id")
@@ -253,10 +251,10 @@ export class VotingService {
         .single();
 
       if (existingVote) {
-        return { success: false, error: "이미 투표하셨습니다" };
+        return { success: false, error: "You have already voted" };
       }
 
-      // 투표 기록 (캐싱용)
+      // Record vote (for caching)
       const { error: voteError } = await supabase.from("votes").insert({
         session_id: sessionId,
         option_id: optionId,
@@ -266,7 +264,7 @@ export class VotingService {
 
       if (voteError) throw voteError;
 
-      // 투표 수 증가
+      // Increment vote count
       const { error: updateError } = await supabase.rpc("increment_vote_count", {
         p_option_id: optionId,
       });
@@ -287,12 +285,12 @@ export class VotingService {
       return { success: true };
     } catch (error) {
       console.error("Error voting:", error);
-      return { success: false, error: "투표 중 오류가 발생했습니다" };
+      return { success: false, error: "Error occurred while voting" };
     }
   }
 
   /**
-   * 스테이지에 대한 활성 투표 세션 확인
+   * Check active voting session for stage
    */
   static async getActiveSessionForStage(stageId: number): Promise<VotingSessionWithOptions | null> {
     try {
@@ -316,7 +314,7 @@ export class VotingService {
   }
 
   /**
-   * 선택지가 투표에서 승리했는지 확인
+   * Check if choice won the vote
    */
   static async isChoiceWinner(choiceId: number, _proposalId?: number): Promise<boolean> {
     try {
@@ -344,7 +342,7 @@ export class VotingService {
   }
 
   /**
-   * 투표 세션 생성 (운영자용)
+   * Create voting session (for operators)
    */
   static async createSession(
     stageId: number,
@@ -355,14 +353,14 @@ export class VotingService {
     choiceIds: number[],
     _useOnChain: boolean = false
   ): Promise<{ success: boolean; sessionId?: number; proposalId?: number; error?: string }> {
-    // 선택지 텍스트 가져오기
+    // Get choice texts
     const { data: choices } = await supabase
       .from("Vygddrasilchoice")
       .select("id, choice")
       .in("id", choiceIds);
 
     if (!choices || choices.length === 0) {
-      return { success: false, error: "선택지를 찾을 수 없습니다" };
+      return { success: false, error: "Choices not found" };
     }
 
     try {
@@ -393,12 +391,12 @@ export class VotingService {
       return { success: true, sessionId: session.id };
     } catch (error) {
       console.error("Error creating session:", error);
-      return { success: false, error: "세션 생성 중 오류가 발생했습니다" };
+      return { success: false, error: "Error occurred while creating session" };
     }
   }
 
   /**
-   * 투표 세션 종료 (운영자용)
+   * End voting session (for operators)
    */
   static async endSession(sessionId: number): Promise<{ success: boolean }> {
     try {
@@ -423,10 +421,10 @@ export class VotingService {
   // ========== HELPER FUNCTIONS ==========
 
   /**
-   * 과반수 승자 찾기
+   * Find majority winner
    * @returns { winnerId, needsRevote }
-   * - winnerId: 과반수 획득한 선택지 ID (없으면 undefined)
-   * - needsRevote: 투표가 종료되었지만 과반수가 없어서 재투표 필요
+   * - winnerId: Choice ID that won majority (undefined if none)
+   * - needsRevote: Voting ended but no majority, revote needed
    */
   static findWinningOptionWithRevote(
     options: { id: number; voteCount: number }[],
@@ -438,7 +436,7 @@ export class VotingService {
       return { winnerId: undefined, needsRevote: isEnded };
     }
 
-    // 과반수 = 투표자의 절반 초과
+    // Majority = more than half of voters
     const halfVotes = totalVotes / 2;
     const winner = options.find(opt => opt.voteCount > halfVotes);
 
@@ -446,7 +444,7 @@ export class VotingService {
       return { winnerId: winner.id, needsRevote: false };
     }
 
-    // 투표 종료 시 과반수가 없으면 재투표 필요
+    // If voting ended without majority, revote is needed
     return { winnerId: undefined, needsRevote: isEnded };
   }
 
@@ -461,10 +459,10 @@ export class VotingService {
     return winner?.id;
   }
 
-  // ========== 권한 관련 함수 ==========
+  // ========== PERMISSION FUNCTIONS ==========
 
   /**
-   * 관리자 여부 확인
+   * Check if user is admin
    */
   static async isAdmin(walletAddress: string): Promise<boolean> {
     try {
@@ -481,7 +479,7 @@ export class VotingService {
   }
 
   /**
-   * 게임 운영자 여부 확인
+   * Check if user is game operator
    */
   static async isGameOperator(gameId: string, walletAddress: string): Promise<boolean> {
     try {
@@ -499,9 +497,26 @@ export class VotingService {
   }
 
   /**
-   * 투표 생성 권한 확인
-   * - 공식 게임: 관리자만
-   * - 유저 생성 게임: 해당 게임 운영자
+   * Check if user is stream creator
+   */
+  static async isStreamCreator(streamId: number, walletAddress: string): Promise<boolean> {
+    try {
+      const { data } = await supabase
+        .from("Stream")
+        .select("Creator")
+        .eq("id", streamId)
+        .single();
+
+      return data?.Creator?.toLowerCase() === walletAddress.toLowerCase();
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Check voting creation permission
+   * - Official games: admin only
+   * - User created games: game operator or stream creator
    */
   static async canCreateVoting(gameId: string, walletAddress: string): Promise<boolean> {
     const isOfficial = OFFICIAL_GAMES.includes(gameId as OfficialGame);
@@ -509,14 +524,26 @@ export class VotingService {
     if (isOfficial) {
       return this.isAdmin(walletAddress);
     } else {
-      return this.isGameOperator(gameId, walletAddress);
+      // Check from game_operators table
+      const isOperator = await this.isGameOperator(gameId, walletAddress);
+      if (isOperator) return true;
+
+      // Check Creator from Stream table for stream_123 format
+      if (gameId.startsWith("stream_")) {
+        const streamId = parseInt(gameId.replace("stream_", ""), 10);
+        if (!isNaN(streamId)) {
+          return this.isStreamCreator(streamId, walletAddress);
+        }
+      }
+
+      return false;
     }
   }
 
-  // ========== 제안 관련 함수 ==========
+  // ========== PROPOSAL FUNCTIONS ==========
 
   /**
-   * 제안 목록 가져오기
+   * Get proposal list
    */
   static async getProposals(
     gameId: string,
@@ -562,7 +589,75 @@ export class VotingService {
   }
 
   /**
-   * 제안 생성
+   * Get my proposals only
+   */
+  static async getMyProposals(
+    gameId: string,
+    walletAddress: string
+  ): Promise<Proposal[]> {
+    try {
+      const { data: proposals, error } = await supabase
+        .from("proposals")
+        .select("*")
+        .eq("game_id", gameId)
+        .eq("proposer_wallet", walletAddress.toLowerCase())
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      return proposals || [];
+    } catch (error) {
+      console.error("Error fetching my proposals:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Get proposals from all games (for DAO view)
+   */
+  static async getAllProposals(
+    status?: 'pending' | 'approved' | 'rejected' | 'converted',
+    walletAddress?: string
+  ): Promise<Proposal[]> {
+    try {
+      let query = supabase
+        .from("proposals")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (status) {
+        query = query.eq("status", status);
+      }
+
+      const { data: proposals, error } = await query;
+
+      if (error) throw error;
+
+      // Add user vote info
+      if (walletAddress && proposals) {
+        const { data: votes } = await supabase
+          .from("proposal_votes")
+          .select("proposal_id, vote_type")
+          .eq("wallet_address", walletAddress.toLowerCase())
+          .in("proposal_id", proposals.map(p => p.id));
+
+        const voteMap = new Map(votes?.map(v => [v.proposal_id, v.vote_type]));
+
+        return proposals.map(p => ({
+          ...p,
+          userVote: voteMap.get(p.id) || null,
+        }));
+      }
+
+      return proposals || [];
+    } catch (error) {
+      console.error("Error fetching all proposals:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Create proposal
    */
   static async createProposal(
     gameId: string,
@@ -590,12 +685,12 @@ export class VotingService {
       return { success: true, proposalId: data.id };
     } catch (error) {
       console.error("Error creating proposal:", error);
-      return { success: false, error: "제안 생성에 실패했습니다" };
+      return { success: false, error: "Failed to create proposal" };
     }
   }
 
   /**
-   * 제안 투표 (좋아요/싫어요)
+   * Vote on proposal (upvote/downvote)
    */
   static async voteOnProposal(
     proposalId: number,
@@ -619,14 +714,91 @@ export class VotingService {
   }
 
   /**
-   * 제안 상태 변경 (관리자/운영자용)
+   * Update proposal status (for admin/operators)
+   * Automatically creates voting session on approval
    */
   static async updateProposalStatus(
     proposalId: number,
     status: "approved" | "rejected",
-    adminNotes?: string
-  ): Promise<{ success: boolean }> {
+    adminNotes?: string,
+    durationMinutes: number = 7 * 24 * 60
+  ): Promise<{ success: boolean; sessionId?: number; error?: string }> {
     try {
+      // Get proposal info
+      const { data: proposal, error: propError } = await supabase
+        .from("proposals")
+        .select("*")
+        .eq("id", proposalId)
+        .single();
+
+      if (propError || !proposal) {
+        return { success: false, error: "Proposal not found" };
+      }
+
+      // Auto-create voting session on approval
+      if (status === "approved" && proposal.stage_slug) {
+        // Get stage ID
+        const { data: stage } = await supabase
+          .from("Vygddrasilstage")
+          .select("id")
+          .eq("slug", proposal.stage_slug)
+          .single();
+
+        if (stage) {
+          // Get choices for this stage
+          const { data: choices } = await supabase
+            .from("Vygddrasilchoice")
+            .select("id, choice")
+            .eq("mainstream_slug", proposal.stage_slug);
+
+          if (choices && choices.length > 0) {
+            // Create voting session (specified duration in minutes)
+            const now = new Date();
+            const endTime = new Date(now.getTime() + durationMinutes * 60 * 1000);
+
+            const { data: session, error: sessionError } = await supabase
+              .from("voting_sessions")
+              .insert({
+                stage_id: stage.id,
+                title: proposal.title,
+                description: proposal.description,
+                start_time: now.toISOString(),
+                end_time: endTime.toISOString(),
+                is_active: true,
+                game_id: proposal.game_id,
+              })
+              .select()
+              .single();
+
+            if (!sessionError && session) {
+              // Add choices
+              const options = choices.map((choice) => ({
+                session_id: session.id,
+                choice_id: choice.id,
+                choice_text: choice.choice,
+                vote_count: 0,
+              }));
+
+              await supabase.from("voting_options").insert(options);
+
+              // Update proposal status (converted)
+              await supabase
+                .from("proposals")
+                .update({
+                  status: "converted",
+                  converted_session_id: session.id,
+                  admin_notes: adminNotes,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", proposalId);
+
+              return { success: true, sessionId: session.id };
+            }
+          }
+        }
+      }
+
+      // Simple status update for rejection or missing stage
       const { error } = await supabase
         .from("proposals")
         .update({
@@ -641,12 +813,12 @@ export class VotingService {
       return { success: true };
     } catch (error) {
       console.error("Error updating proposal:", error);
-      return { success: false };
+      return { success: false, error: "Failed to update status" };
     }
   }
 
   /**
-   * 제안을 투표 세션으로 전환 (관리자/운영자용)
+   * Convert proposal to voting session (for admin/operators)
    */
   static async convertProposalToVoting(
     proposalId: number,
@@ -656,7 +828,7 @@ export class VotingService {
     gameId: string
   ): Promise<{ success: boolean; sessionId?: number; error?: string }> {
     try {
-      // 제안 정보 가져오기
+      // Get proposal info
       const { data: proposal, error: propError } = await supabase
         .from("proposals")
         .select("*")
@@ -664,23 +836,23 @@ export class VotingService {
         .single();
 
       if (propError || !proposal) {
-        return { success: false, error: "제안을 찾을 수 없습니다" };
+        return { success: false, error: "Proposal not found" };
       }
 
-      // 선택지 정보 가져오기
+      // Get choice info
       const { data: choices } = await supabase
         .from("Vygddrasilchoice")
         .select("id, choice")
         .in("id", choiceIds);
 
       if (!choices || choices.length === 0) {
-        return { success: false, error: "선택지를 찾을 수 없습니다" };
+        return { success: false, error: "Choices not found" };
       }
 
       const now = new Date();
       const endTime = new Date(now.getTime() + durationMinutes * 60 * 1000);
 
-      // 투표 세션 생성
+      // Create voting session
       const { data: session, error: sessionError } = await supabase
         .from("voting_sessions")
         .insert({
@@ -696,10 +868,10 @@ export class VotingService {
         .single();
 
       if (sessionError || !session) {
-        return { success: false, error: "투표 세션 생성에 실패했습니다" };
+        return { success: false, error: "Failed to create voting session" };
       }
 
-      // 선택지 추가
+      // Add choices
       const options = choices.map((choice) => ({
         session_id: session.id,
         choice_id: choice.id,
@@ -709,7 +881,7 @@ export class VotingService {
 
       await supabase.from("voting_options").insert(options);
 
-      // 제안 상태 업데이트
+      // Update proposal status
       await supabase
         .from("proposals")
         .update({
@@ -722,12 +894,12 @@ export class VotingService {
       return { success: true, sessionId: session.id };
     } catch (error) {
       console.error("Error converting proposal:", error);
-      return { success: false, error: "투표 전환에 실패했습니다" };
+      return { success: false, error: "Failed to convert to voting" };
     }
   }
 
   /**
-   * 직접 투표 세션 생성 (관리자/운영자용)
+   * Create voting session directly (for admin/operators)
    */
   static async createVotingSession(
     gameId: string,
@@ -738,20 +910,20 @@ export class VotingService {
     durationMinutes: number
   ): Promise<{ success: boolean; sessionId?: number; error?: string }> {
     try {
-      // 선택지 정보 가져오기
+      // Get choice info
       const { data: choices } = await supabase
         .from("Vygddrasilchoice")
         .select("id, choice")
         .in("id", choiceIds);
 
       if (!choices || choices.length === 0) {
-        return { success: false, error: "선택지를 찾을 수 없습니다" };
+        return { success: false, error: "Choices not found" };
       }
 
       const now = new Date();
       const endTime = new Date(now.getTime() + durationMinutes * 60 * 1000);
 
-      // 투표 세션 생성
+      // Create voting session
       const { data: session, error: sessionError } = await supabase
         .from("voting_sessions")
         .insert({
@@ -767,10 +939,10 @@ export class VotingService {
         .single();
 
       if (sessionError || !session) {
-        return { success: false, error: "투표 세션 생성에 실패했습니다" };
+        return { success: false, error: "Failed to create voting session" };
       }
 
-      // 선택지 추가
+      // Add choices
       const options = choices.map((choice) => ({
         session_id: session.id,
         choice_id: choice.id,
@@ -783,12 +955,12 @@ export class VotingService {
       return { success: true, sessionId: session.id };
     } catch (error) {
       console.error("Error creating voting session:", error);
-      return { success: false, error: "투표 생성에 실패했습니다" };
+      return { success: false, error: "Failed to create voting" };
     }
   }
 
   /**
-   * 스테이지별 선택지 가져오기
+   * Get choices by stage
    */
   static async getChoicesByStage(stageSlug: string): Promise<{ id: number; choice: string }[]> {
     try {
@@ -808,7 +980,7 @@ export class VotingService {
   }
 
   /**
-   * 스테이지 목록 가져오기
+   * Get stage list
    */
   static async getStages(): Promise<{ id: number; slug: string; title: string }[]> {
     try {
@@ -827,7 +999,7 @@ export class VotingService {
   }
 
   /**
-   * 유저 생성 게임 목록 가져오기 (Stream 테이블에서)
+   * Get user created games (from Stream table)
    */
   static async getUserCreatedGames(): Promise<{ id: number; title: string }[]> {
     try {
@@ -836,70 +1008,93 @@ export class VotingService {
         .select("id, Title")
         .order("id", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching user created games:", error.message, error.code, error.details);
+        return [];
+      }
 
       return (data || []).map(g => ({
         id: g.id,
         title: g.Title,
       }));
     } catch (error) {
-      console.error("Error fetching user created games:", error);
+      console.error("Error fetching user created games (catch):", error);
       return [];
     }
   }
 
+  // Cache: eligible voters count (valid for 10 minutes)
+  private static eligibleVotersCache: { count: number; timestamp: number } | null = null;
+  private static CACHE_TTL = 10 * 60 * 1000;
+
   /**
-   * 게임별 투표 세션 가져오기
+   * Get voting sessions by game (optimized: parallel query execution)
    */
-  static async getSessionsByGame(gameId: string): Promise<VotingSessionWithOptions[]> {
+  static async getSessionsByGame(gameId: string, walletAddress?: string): Promise<VotingSessionWithOptions[]> {
     try {
-      const { data: sessions, error } = await supabase
-        .from("voting_sessions")
-        .select("*")
-        .eq("game_id", gameId)
-        .order("created_at", { ascending: false });
+      const now = Date.now();
+      const useCache = this.eligibleVotersCache && (now - this.eligibleVotersCache.timestamp) < this.CACHE_TTL;
 
-      if (error) throw error;
-      if (!sessions || sessions.length === 0) return [];
+      // Execute all queries in parallel
+      const [sessionsResult, eligibleResult, userVotesResult] = await Promise.all([
+        // 1. Sessions + options
+        supabase
+          .from("voting_sessions")
+          .select(`*, voting_options (*)`)
+          .eq("game_id", gameId)
+          .order("created_at", { ascending: false }),
+        // 2. Eligible voters - unique wallet count (query only when cache is empty)
+        useCache
+          ? Promise.resolve({ count: this.eligibleVotersCache!.count })
+          : supabase.from("vygddrasilclass").select("wallet_address"),
+        // 3. User votes (fetch all then filter - faster)
+        walletAddress
+          ? supabase.from("votes").select("session_id, option_id").eq("wallet_address", walletAddress)
+          : Promise.resolve({ data: [] })
+      ]);
 
-      // 총 투표 가능자 수
-      const { data: uniqueWallets } = await supabase
-        .from("vygddrasilclass")
-        .select("wallet_address");
+      // Update cache - calculate unique wallet count
+      let eligibleVoters = 0;
+      if (useCache) {
+        eligibleVoters = this.eligibleVotersCache!.count;
+      } else {
+        const wallets = (eligibleResult as { data: Array<{ wallet_address: string }> }).data || [];
+        const uniqueWallets = new Set(wallets.map(w => w.wallet_address?.toLowerCase()));
+        eligibleVoters = uniqueWallets.size;
+        this.eligibleVotersCache = { count: eligibleVoters, timestamp: now };
+      }
 
-      const uniqueWalletSet = new Set((uniqueWallets || []).map(w => w.wallet_address?.toLowerCase()));
-      const eligibleVoters = uniqueWalletSet.size;
+      const sessions = sessionsResult.data;
+      if (sessionsResult.error || !sessions?.length) return [];
 
-      const sessionsWithOptions = await Promise.all(
-        sessions.map(async (session) => {
-          const { data: options } = await supabase
-            .from("voting_options")
-            .select("*")
-            .eq("session_id", session.id)
-            .order("id", { ascending: true });
+      // User vote map
+      const userVoteMap = new Map<number, number>();
+      ((userVotesResult as { data: Array<{ session_id: number; option_id: number }> }).data || [])
+        .forEach(v => userVoteMap.set(v.session_id, v.option_id));
 
-          const totalVotes = (options || []).reduce((sum, opt) => sum + (opt.vote_count || 0), 0);
-          const isEnded = new Date(session.end_time) < new Date();
-          const { winnerId, needsRevote } = this.findWinningOptionWithRevote(
-            (options || []).map(opt => ({ id: opt.id, voteCount: opt.vote_count || 0 })),
-            totalVotes,
-            eligibleVoters,
-            isEnded
-          );
+      // Result mapping (synchronous for speed)
+      return sessions.map((session) => {
+        const options = session.voting_options || [];
+        const totalVotes = options.reduce((sum: number, opt: VotingOption) => sum + (opt.vote_count || 0), 0);
+        const isEnded = new Date(session.end_time) < new Date();
+        const { winnerId, needsRevote } = this.findWinningOptionWithRevote(
+          options.map((opt: VotingOption) => ({ id: opt.id, voteCount: opt.vote_count || 0 })),
+          totalVotes,
+          eligibleVoters,
+          isEnded
+        );
 
-          return {
-            ...session,
-            isOnChain: false,
-            options: options || [],
-            totalVotes,
-            eligibleVoters,
-            winningOptionId: winnerId,
-            needsRevote,
-          } as VotingSessionWithOptions;
-        })
-      );
-
-      return sessionsWithOptions;
+        return {
+          ...session,
+          isOnChain: false,
+          options,
+          totalVotes,
+          eligibleVoters,
+          userVote: userVoteMap.get(session.id),
+          winningOptionId: winnerId,
+          needsRevote,
+        } as VotingSessionWithOptions;
+      });
     } catch (error) {
       console.error("Error fetching sessions by game:", error);
       return [];
