@@ -41,36 +41,44 @@ export default function HistorySection({ wallet }: { wallet: { address: string }
     try {
       const data = await getUserEvents(wallet.address);
 
-      // 각 listing 이벤트에 대해 온체인 남은 수량 확인
-      const eventsWithAmounts: EventRow[] = await Promise.all(
-        data.map(async (event) => {
-          if (event.event_type === "listing" && window.ethereum) {
-            try {
-              const provider = new ethers.BrowserProvider(window.ethereum);
-              const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
+      // listing 이벤트만 필터링
+      const listingEvents = data.filter((e) => e.event_type === "listing");
+      const otherEvents = data.filter((e) => e.event_type !== "listing");
 
-              // 온체인에서 현재 리스팅된 수량 확인 (from_address가 seller)
-              const amount = await marketplace.getListedAmount(
-                event.contract_address,
-                event.token_id,
-                event.from_address // listing 이벤트에서 from_address가 seller
-              );
+      // listing 이벤트가 있고 ethereum이 있을 때만 온체인 조회
+      if (listingEvents.length > 0 && window.ethereum) {
+        try {
+          // provider와 contract를 한 번만 생성
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
 
-              return {
-                ...event,
-                remaining_amount: Number(amount),
-              };
-            } catch (err) {
-              console.warn("온체인 수량 확인 실패:", err);
-              return { ...event, remaining_amount: 0 };
-            }
-          }
-          return event;
-        })
-      );
+          // 모든 listing 이벤트에 대해 병렬로 온체인 수량 조회
+          const listingWithAmounts = await Promise.all(
+            listingEvents.map(async (event) => {
+              try {
+                const amount = await marketplace.getListedAmount(
+                  event.contract_address,
+                  event.token_id,
+                  event.from_address
+                );
+                return { ...event, remaining_amount: Number(amount) };
+              } catch {
+                return { ...event, remaining_amount: 0 };
+              }
+            })
+          );
 
-      setEvents(eventsWithAmounts);
-      console.log("📋 히스토리 로드 완료:", eventsWithAmounts.length, "개");
+          // 다른 이벤트와 합치고 정렬
+          const allEvents = [...listingWithAmounts, ...otherEvents];
+          allEvents.sort((a, b) => new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime());
+          setEvents(allEvents);
+        } catch (err) {
+          console.warn("온체인 수량 확인 실패:", err);
+          setEvents(data);
+        }
+      } else {
+        setEvents(data);
+      }
     } catch (error) {
       console.error("히스토리 로드 실패:", error);
       toast.error("거래 내역을 불러오는데 실패했습니다");

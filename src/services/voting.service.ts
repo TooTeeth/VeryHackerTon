@@ -45,6 +45,11 @@ export interface VotingSessionWithOptions extends VotingSession {
   winningOptionId?: number;
   needsRevote?: boolean;
   game_id?: string;
+  // Deletion info
+  is_deleted?: boolean;
+  delete_reason?: string;
+  deleted_by?: string;
+  deleted_at?: string;
 }
 
 // ========== PROPOSAL TYPES ==========
@@ -107,7 +112,9 @@ export class VotingService {
 
           const totalVotes = (options || []).reduce((sum, opt) => sum + (opt.vote_count || 0), 0);
 
-          const isEnded = new Date(session.end_time) < new Date();
+          // Fix timezone: ensure end_time is parsed as UTC
+          const endTimeStr = session.end_time.endsWith('Z') ? session.end_time : session.end_time + 'Z';
+          const isEnded = new Date(endTimeStr) < new Date();
           const { winnerId, needsRevote } = this.findWinningOptionWithRevote(
             (options || []).map(opt => ({ id: opt.id, voteCount: opt.vote_count || 0 })),
             totalVotes,
@@ -186,7 +193,9 @@ export class VotingService {
         userVote = vote?.option_id;
       }
 
-      const isEnded = new Date(session.end_time) < new Date();
+      // Fix timezone: ensure end_time is parsed as UTC
+      const endTimeStr = session.end_time.endsWith('Z') ? session.end_time : session.end_time + 'Z';
+      const isEnded = new Date(endTimeStr) < new Date();
       const { winnerId, needsRevote } = this.findWinningOptionWithRevote(
         (options || []).map(opt => ({ id: opt.id, voteCount: opt.vote_count || 0 })),
         totalVotes,
@@ -196,7 +205,8 @@ export class VotingService {
 
       return {
         ...session,
-        isOnChain: false,
+        proposalId: session.proposal_id,
+        isOnChain: !!session.proposal_id,
         options: options || [],
         totalVotes,
         eligibleVoters,
@@ -235,10 +245,13 @@ export class VotingService {
       }
 
       const now = new Date();
-      if (now < new Date(session.start_time)) {
+      // Fix timezone: ensure times are parsed as UTC
+      const startTimeStr = session.start_time.endsWith('Z') ? session.start_time : session.start_time + 'Z';
+      const endTimeStr = session.end_time.endsWith('Z') ? session.end_time : session.end_time + 'Z';
+      if (now < new Date(startTimeStr)) {
         return { success: false, error: "Voting has not started yet" };
       }
-      if (now > new Date(session.end_time)) {
+      if (now > new Date(endTimeStr)) {
         return { success: false, error: "Voting has ended" };
       }
 
@@ -290,6 +303,90 @@ export class VotingService {
   }
 
   /**
+   * Delete voting session - marks session as deleted with reason
+   * Only admin or session creator can delete
+   */
+  static async deleteSession(
+    sessionId: number,
+    walletAddress: string,
+    deleteReason: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Check permission (admin or game operator)
+      const isAdminUser = await this.isAdmin(walletAddress);
+
+      // Get session info to check game_id for operator permission
+      const { data: session } = await supabase
+        .from("voting_sessions")
+        .select("*")
+        .eq("id", sessionId)
+        .single();
+
+      if (!session) {
+        return { success: false, error: "Voting session not found" };
+      }
+
+      // Check if user is game operator for this game
+      let hasPermission = isAdminUser;
+      if (!hasPermission && session.game_id) {
+        hasPermission = await this.isGameOperator(session.game_id, walletAddress);
+      }
+
+      if (!hasPermission) {
+        return { success: false, error: "Permission denied. Only admin or game operator can delete voting sessions." };
+      }
+
+      // Mark session as deleted (soft delete) with reason
+      const { error: updateError } = await supabase
+        .from("voting_sessions")
+        .update({
+          is_active: false,
+          is_deleted: true,
+          delete_reason: deleteReason,
+          deleted_by: walletAddress,
+          deleted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", sessionId);
+
+      if (updateError) throw updateError;
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error deleting session:", error);
+      return { success: false, error: "Error occurred while deleting voting session" };
+    }
+  }
+
+  /**
+   * Check if user can delete a voting session
+   */
+  static async canDeleteSession(
+    sessionId: number,
+    walletAddress: string
+  ): Promise<boolean> {
+    try {
+      const isAdminUser = await this.isAdmin(walletAddress);
+      if (isAdminUser) return true;
+
+      // Get session to check game_id
+      const { data: session } = await supabase
+        .from("voting_sessions")
+        .select("game_id")
+        .eq("id", sessionId)
+        .single();
+
+      if (session?.game_id) {
+        return this.isGameOperator(session.game_id, walletAddress);
+      }
+
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Check active voting session for stage
    */
   static async getActiveSessionForStage(stageId: number): Promise<VotingSessionWithOptions | null> {
@@ -329,7 +426,9 @@ export class VotingService {
       const session = await this.getSessionById(option.session_id);
       if (!session) return true;
 
-      if (new Date(session.end_time) > new Date()) {
+      // Fix timezone: ensure end_time is parsed as UTC
+      const endTimeStr = session.end_time.endsWith('Z') ? session.end_time : session.end_time + 'Z';
+      if (new Date(endTimeStr) > new Date()) {
         return false;
       }
 
@@ -924,6 +1023,12 @@ export class VotingService {
       const endTime = new Date(now.getTime() + durationMinutes * 60 * 1000);
 
       // Create voting session
+      console.log("[createVotingSession] Creating session:", {
+        gameId,
+        durationMinutes,
+        now: now.toISOString(),
+        endTime: endTime.toISOString()
+      });
       const { data: session, error: sessionError } = await supabase
         .from("voting_sessions")
         .insert({
@@ -938,6 +1043,7 @@ export class VotingService {
         .select()
         .single();
 
+      console.log("[createVotingSession] Result:", { session, error: sessionError });
       if (sessionError || !session) {
         return { success: false, error: "Failed to create voting session" };
       }
@@ -955,6 +1061,82 @@ export class VotingService {
       return { success: true, sessionId: session.id };
     } catch (error) {
       console.error("Error creating voting session:", error);
+      return { success: false, error: "Failed to create voting" };
+    }
+  }
+
+  /**
+   * Create voting session by stage (auto-fetches all choices for the stage)
+   */
+  static async createVotingSessionByStage(
+    gameId: string,
+    stageId: number,
+    stageSlug: string,
+    title: string,
+    description: string,
+    durationMinutes: number,
+    proposalId?: number
+  ): Promise<{ success: boolean; sessionId?: number; error?: string }> {
+    try {
+      // Get all choices for this stage
+      const { data: choices } = await supabase
+        .from("Vygddrasilchoice")
+        .select("id, choice")
+        .eq("mainstream_slug", stageSlug)
+        .order("id", { ascending: true });
+
+      if (!choices || choices.length < 2) {
+        return { success: false, error: "스테이지에 최소 2개의 선택지가 필요합니다" };
+      }
+
+      const now = new Date();
+      const endTime = new Date(now.getTime() + durationMinutes * 60 * 1000);
+
+      // Create voting session
+      console.log("[createVotingSessionByStage] Creating session:", {
+        gameId,
+        stageSlug,
+        choiceCount: choices.length,
+        durationMinutes,
+        proposalId,
+        now: now.toISOString(),
+        endTime: endTime.toISOString()
+      });
+
+      const { data: session, error: sessionError } = await supabase
+        .from("voting_sessions")
+        .insert({
+          stage_id: stageId,
+          title,
+          description,
+          start_time: now.toISOString(),
+          end_time: endTime.toISOString(),
+          is_active: true,
+          game_id: gameId,
+          proposal_id: proposalId,
+        })
+        .select()
+        .single();
+
+      if (sessionError || !session) {
+        console.error("[createVotingSessionByStage] Error:", sessionError);
+        return { success: false, error: "Failed to create voting session" };
+      }
+
+      // Add all choices from the stage
+      const options = choices.map((choice) => ({
+        session_id: session.id,
+        choice_id: choice.id,
+        choice_text: choice.choice,
+        vote_count: 0,
+      }));
+
+      await supabase.from("voting_options").insert(options);
+
+      console.log("[createVotingSessionByStage] Created session:", session.id, "with", choices.length, "options");
+      return { success: true, sessionId: session.id };
+    } catch (error) {
+      console.error("Error creating voting session by stage:", error);
       return { success: false, error: "Failed to create voting" };
     }
   }
@@ -1032,6 +1214,7 @@ export class VotingService {
    */
   static async getSessionsByGame(gameId: string, walletAddress?: string): Promise<VotingSessionWithOptions[]> {
     try {
+      console.log("[getSessionsByGame] Loading sessions for game:", gameId);
       const now = Date.now();
       const useCache = this.eligibleVotersCache && (now - this.eligibleVotersCache.timestamp) < this.CACHE_TTL;
 
@@ -1065,6 +1248,7 @@ export class VotingService {
       }
 
       const sessions = sessionsResult.data;
+      console.log("[getSessionsByGame] Query result:", { error: sessionsResult.error, count: sessions?.length, gameId });
       if (sessionsResult.error || !sessions?.length) return [];
 
       // User vote map
@@ -1076,7 +1260,10 @@ export class VotingService {
       return sessions.map((session) => {
         const options = session.voting_options || [];
         const totalVotes = options.reduce((sum: number, opt: VotingOption) => sum + (opt.vote_count || 0), 0);
-        const isEnded = new Date(session.end_time) < new Date();
+        // Fix timezone: ensure end_time is parsed as UTC
+        const endTimeStr = session.end_time.endsWith('Z') ? session.end_time : session.end_time + 'Z';
+        const isEnded = new Date(endTimeStr) < new Date();
+
         const { winnerId, needsRevote } = this.findWinningOptionWithRevote(
           options.map((opt: VotingOption) => ({ id: opt.id, voteCount: opt.vote_count || 0 })),
           totalVotes,
@@ -1086,7 +1273,8 @@ export class VotingService {
 
         return {
           ...session,
-          isOnChain: false,
+          proposalId: session.proposal_id,
+          isOnChain: !!session.proposal_id,
           options,
           totalVotes,
           eligibleVoters,

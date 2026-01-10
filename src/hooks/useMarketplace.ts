@@ -66,10 +66,13 @@ export function useMarketplace(walletAddress?: string) {
     console.log("🔄 내 NFT 로딩 시작...");
 
     try {
-      const userNFTs = await fetchUserNFTs(walletAddress, NFT_CONTRACT_LIST);
+      // NFT와 리스팅을 병렬로 로드
+      const [userNFTs, allListings] = await Promise.all([
+        fetchUserNFTs(walletAddress, NFT_CONTRACT_LIST),
+        getActiveListings(),
+      ]);
       console.log("📦 지갑의 NFT:", userNFTs.length, "개");
 
-      const allListings = await getActiveListings();
       const myMarketListings = allListings.filter((l) => l.seller_address.toLowerCase() === walletAddress.toLowerCase());
       console.log("📝 내 마켓 리스팅:", myMarketListings.length, "개");
 
@@ -87,26 +90,31 @@ export function useMarketplace(walletAddress?: string) {
       const listingsMap: Record<string, Listing> = {};
       const listedAmountsMap: Record<string, number> = {};
 
-      for (const listing of myMarketListings) {
-        const key = `${listing.contract_address}-${listing.token_id}`;
+      // 온체인 조회가 필요한 경우에만 provider/contract 생성
+      if (myMarketListings.length > 0 && window.ethereum) {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
 
-        try {
-          if (window.ethereum) {
-            const provider = new ethers.BrowserProvider(window.ethereum);
-            const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
-            const amount = await marketplace.getListedAmount(listing.contract_address, listing.token_id, walletAddress);
-            const onChainAmount = Number(amount);
-
-            if (onChainAmount > 0) {
-              listingsMap[key] = listing;
-              listedAmountsMap[key] = onChainAmount;
-              console.log(`NFT #${listing.token_id}: ${onChainAmount}개 리스팅됨`);
-            } else if (listing.id && listing.status === "active") {
-              await updateListingStatus(listing.id, "cancelled");
+        // 모든 리스팅에 대해 병렬로 온체인 수량 조회
+        const results = await Promise.all(
+          myMarketListings.map(async (listing) => {
+            const key = `${listing.contract_address}-${listing.token_id}`;
+            try {
+              const amount = await marketplace.getListedAmount(listing.contract_address, listing.token_id, walletAddress);
+              return { key, listing, onChainAmount: Number(amount) };
+            } catch {
+              return { key, listing, onChainAmount: 0 };
             }
+          })
+        );
+
+        for (const { key, listing, onChainAmount } of results) {
+          if (onChainAmount > 0) {
+            listingsMap[key] = listing;
+            listedAmountsMap[key] = onChainAmount;
+          } else if (listing.id && listing.status === "active") {
+            updateListingStatus(listing.id, "cancelled"); // 비동기로 처리
           }
-        } catch (err) {
-          console.warn("Listing 조회 실패:", listing.contract_address, listing.token_id, err);
         }
       }
 
@@ -129,38 +137,47 @@ export function useMarketplace(walletAddress?: string) {
       const activeListings = await getActiveListings();
       console.log("📊 Supabase active 리스팅:", activeListings.length, "개");
 
-      const listingsWithData: MarketNFT[] = [];
+      // provider와 contract를 한 번만 생성
+      let provider: ethers.BrowserProvider | null = null;
+      let marketplace: ethers.Contract | null = null;
+      if (window.ethereum) {
+        provider = new ethers.BrowserProvider(window.ethereum);
+        marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
+      }
 
-      for (const listing of activeListings) {
-        try {
-          let listedAmount = 0;
-
-          if (window.ethereum) {
+      // 온체인 수량 조회를 병렬로 처리
+      const listingsWithAmounts = await Promise.all(
+        activeListings.map(async (listing) => {
+          let listedAmount = listing.amount || 0;
+          if (marketplace) {
             try {
-              const provider = new ethers.BrowserProvider(window.ethereum);
-              const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
               const amount = await marketplace.getListedAmount(listing.contract_address, listing.token_id, listing.seller_address);
               listedAmount = Number(amount);
-              console.log(`✅ getListedAmount 성공 (${listing.token_id}): ${listedAmount}`);
-            } catch (amountErr) {
-              console.warn(`❌ getListedAmount 실패 (${listing.token_id}), Supabase 데이터 사용:`, amountErr);
-              // 온체인 조회 실패 시 Supabase amount 사용
-              listedAmount = listing.amount || 0;
+            } catch {
+              // 온체인 조회 실패 시 Supabase 데이터 사용
             }
-          } else {
-            // MetaMask 없을 때도 Supabase 데이터 사용
-            listedAmount = listing.amount || 0;
           }
+          return { listing, listedAmount };
+        })
+      );
 
-          if (listedAmount === 0) {
-            console.log(`⚠️ 리스팅 수량 0 (${listing.token_id}), 스킵`);
-            if (listing.id && listing.status === "active") {
-              await updateListingStatus(listing.id, "cancelled");
-            }
-            continue;
+      // 메타데이터 캐시 (같은 contract+tokenId는 같은 메타데이터)
+      const metadataCache = new Map<string, { name: string; description: string; image: string; category: Category }>();
+      const listingsWithData: MarketNFT[] = [];
+
+      for (const { listing, listedAmount } of listingsWithAmounts) {
+        if (listedAmount === 0) {
+          if (listing.id && listing.status === "active") {
+            updateListingStatus(listing.id, "cancelled"); // 비동기로 처리 (await 제거)
           }
+          continue;
+        }
 
-          let metadata = {
+        const metaKey = `${listing.contract_address}-${listing.token_id}`;
+        let metadata = metadataCache.get(metaKey);
+
+        if (!metadata) {
+          metadata = {
             name: `NFT #${listing.token_id}`,
             description: "Epic item for your adventure",
             image: "/nft-placeholder.png",
@@ -168,8 +185,7 @@ export function useMarketplace(walletAddress?: string) {
           };
 
           try {
-            if (window.ethereum) {
-              const provider = new ethers.BrowserProvider(window.ethereum);
+            if (provider) {
               const nftContract = new ethers.Contract(listing.contract_address, ["function uri(uint256 tokenId) external view returns (string memory)"], provider);
               let tokenURI = await nftContract.uri(listing.token_id);
               if (tokenURI.startsWith("ipfs://")) {
@@ -188,11 +204,10 @@ export function useMarketplace(walletAddress?: string) {
           } catch {
             // metadata fetch failed, use defaults
           }
-
-          listingsWithData.push({ ...listing, metadata, listedAmount });
-        } catch (err) {
-          console.error("리스팅 처리 실패:", err);
+          metadataCache.set(metaKey, metadata);
         }
+
+        listingsWithData.push({ ...listing, metadata, listedAmount });
       }
 
       const grouped = new Map<string, GroupedMarketNFT>();

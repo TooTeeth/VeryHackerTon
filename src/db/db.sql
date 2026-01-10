@@ -402,6 +402,10 @@ CREATE TABLE public.voting_sessions (
   created_at timestamp without time zone DEFAULT now(),
   updated_at timestamp without time zone DEFAULT now(),
   game_id text DEFAULT 'vygddrasil'::text,
+  is_deleted boolean DEFAULT false,
+  delete_reason text,
+  deleted_by text,
+  deleted_at timestamp with time zone,
   CONSTRAINT voting_sessions_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.vtdn (

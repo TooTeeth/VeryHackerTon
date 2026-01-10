@@ -2,18 +2,15 @@
 
 import React, { useState, useEffect } from "react";
 import { toast } from "react-toastify";
+import { ethers } from "ethers";
 import { VotingService } from "../../services/voting.service";
 import { useLanguage } from "../../context/LanguageContext";
+import { DAO_CONTRACT_ADDRESS, DAO_ABI } from "../../lib/daoConfig";
 
 interface Stage {
   id: number;
   slug: string;
   title: string;
-}
-
-interface Choice {
-  id: number;
-  choice: string;
 }
 
 interface CreateVotingModalProps {
@@ -36,11 +33,9 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
   const [description, setDescription] = useState("");
   const [stages, setStages] = useState<Stage[]>([]);
   const [selectedStage, setSelectedStage] = useState<Stage | null>(null);
-  const [choices, setChoices] = useState<Choice[]>([]);
-  const [selectedChoices, setSelectedChoices] = useState<number[]>([]);
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingChoices, setIsLoadingChoices] = useState(false);
+  const [loadingStep, setLoadingStep] = useState<string>("");
 
   // Load stage list
   useEffect(() => {
@@ -48,29 +43,6 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
       VotingService.getStages().then(setStages);
     }
   }, [isOpen]);
-
-  // Load choices when stage is selected
-  useEffect(() => {
-    if (selectedStage) {
-      setIsLoadingChoices(true);
-      VotingService.getChoicesByStage(selectedStage.slug).then((data) => {
-        setChoices(data);
-        setSelectedChoices([]);
-        setIsLoadingChoices(false);
-      });
-    } else {
-      setChoices([]);
-      setSelectedChoices([]);
-    }
-  }, [selectedStage]);
-
-  const handleChoiceToggle = (choiceId: number) => {
-    setSelectedChoices((prev) =>
-      prev.includes(choiceId)
-        ? prev.filter((id) => id !== choiceId)
-        : [...prev, choiceId]
-    );
-  };
 
   const handleSubmit = async () => {
     if (!title.trim()) {
@@ -81,39 +53,87 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
       toast.error(t("voting.createModal.selectStage"));
       return;
     }
-    if (selectedChoices.length < 2) {
-      toast.error(t("voting.createModal.minChoices"));
+    if (!walletAddress) {
+      toast.error("지갑을 연결해주세요");
       return;
     }
 
     setIsLoading(true);
+
     try {
-      const result = await VotingService.createVotingSession(
+      // Step 1: Create DAO proposal on blockchain
+      setLoadingStep("블록체인에 프로포절 생성 중...");
+
+      if (!window.ethereum) {
+        throw new Error("MetaMask가 설치되어 있지 않습니다");
+      }
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const daoContract = new ethers.Contract(DAO_CONTRACT_ADDRESS, DAO_ABI, signer);
+
+      // Convert duration to seconds for the contract
+      const durationSeconds = durationMinutes * 60;
+
+      // Create proposal with the specified duration
+      const tx = await daoContract.createProposalWithDuration(
+        `Story Vote: ${title}`,
+        durationSeconds
+      );
+
+      setLoadingStep("트랜잭션 확인 대기 중...");
+      const receipt = await tx.wait();
+
+      // Extract proposalId from event
+      let proposalId: number | null = null;
+      const proposalCreatedTopic = ethers.id("ProposalCreated(uint256,address,string)");
+      const event = receipt.logs.find((log: { topics: string[] }) =>
+        log.topics[0] === proposalCreatedTopic
+      );
+
+      if (event) {
+        proposalId = parseInt(event.topics[1], 16);
+        console.log("[CreateVotingModal] Created proposal ID:", proposalId);
+      }
+
+      // Step 2: Create voting session in DB
+      setLoadingStep("투표 세션 생성 중...");
+
+      const result = await VotingService.createVotingSessionByStage(
         gameId,
         selectedStage.id,
+        selectedStage.slug,
         title,
         description,
-        selectedChoices,
-        durationMinutes
+        durationMinutes,
+        proposalId ?? undefined
       );
 
       if (result.success) {
-        toast.success(t("voting.createModal.created"));
+        toast.success(`투표가 생성되었습니다${proposalId ? ` (Proposal #${proposalId})` : ""}`);
         onCreated();
         onClose();
         // Reset form
         setTitle("");
         setDescription("");
         setSelectedStage(null);
-        setSelectedChoices([]);
       } else {
         toast.error(result.error || t("voting.createModal.failed"));
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error creating voting:", error);
-      toast.error(t("voting.createModal.failed"));
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+      if (errorMessage.includes("user rejected")) {
+        toast.error("트랜잭션이 취소되었습니다");
+      } else if (errorMessage.includes("Insufficient VERY")) {
+        toast.error("VERY 잔액이 부족합니다 (최소 1 VERY 필요)");
+      } else {
+        toast.error(`투표 생성 실패: ${errorMessage}`);
+      }
     } finally {
       setIsLoading(false);
+      setLoadingStep("");
     }
   };
 
@@ -127,7 +147,8 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
           <h2 className="text-xl font-bold text-white">{t("voting.createModal.title")}</h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-all"
+            disabled={isLoading}
+            className="w-8 h-8 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-all disabled:opacity-50"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -146,7 +167,8 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder={t("voting.createModal.titlePlaceholder")}
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+              disabled={isLoading}
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 disabled:opacity-50"
             />
           </div>
 
@@ -158,7 +180,8 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
               onChange={(e) => setDescription(e.target.value)}
               placeholder={t("voting.createModal.descPlaceholder")}
               rows={3}
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
+              disabled={isLoading}
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none disabled:opacity-50"
             />
           </div>
 
@@ -171,7 +194,8 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
                 const stage = stages.find((s) => s.slug === e.target.value);
                 setSelectedStage(stage || null);
               }}
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:border-purple-500"
+              disabled={isLoading}
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:border-purple-500 disabled:opacity-50"
             >
               <option value="">{t("voting.createModal.stagePlaceholder")}</option>
               {stages.map((stage) => (
@@ -181,43 +205,6 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
               ))}
             </select>
           </div>
-
-          {/* Choices */}
-          {selectedStage && (
-            <div>
-              <label className="block text-gray-400 text-sm mb-2">
-                {t("voting.createModal.choicesLabel")}
-              </label>
-              {isLoadingChoices ? (
-                <div className="text-gray-500 text-center py-4">{t("common.loading")}</div>
-              ) : choices.length === 0 ? (
-                <div className="text-gray-500 text-center py-4">
-                  {t("voting.createModal.noChoices")}
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-40 overflow-y-auto">
-                  {choices.map((choice) => (
-                    <label
-                      key={choice.id}
-                      className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all ${
-                        selectedChoices.includes(choice.id)
-                          ? "bg-purple-600/30 border border-purple-500"
-                          : "bg-gray-800 border border-gray-700 hover:border-gray-600"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedChoices.includes(choice.id)}
-                        onChange={() => handleChoiceToggle(choice.id)}
-                        className="w-4 h-4 accent-purple-600"
-                      />
-                      <span className="text-white">{choice.choice}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Voting duration */}
           <div>
@@ -233,11 +220,12 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
                 <button
                   key={option.value}
                   onClick={() => setDurationMinutes(option.value)}
+                  disabled={isLoading}
                   className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
                     durationMinutes === option.value
                       ? "bg-purple-600 text-white"
                       : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-                  }`}
+                  } disabled:opacity-50`}
                 >
                   {option.label}
                 </button>
@@ -245,13 +233,23 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
             </div>
           </div>
 
+          {/* Loading status */}
+          {isLoading && loadingStep && (
+            <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-xl">
+              <div className="flex items-center gap-2">
+                <div className="animate-spin w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full"></div>
+                <span className="text-purple-400 text-sm">{loadingStep}</span>
+              </div>
+            </div>
+          )}
+
           {/* Create button */}
           <button
             onClick={handleSubmit}
-            disabled={isLoading || !title || !selectedStage || selectedChoices.length < 2}
+            disabled={isLoading || !title || !selectedStage}
             className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-xl transition mt-4"
           >
-            {isLoading ? t("voting.createModal.creating") : t("voting.createModal.title")}
+            {isLoading ? loadingStep || "생성 중..." : t("voting.createModal.title")}
           </button>
         </div>
       </div>

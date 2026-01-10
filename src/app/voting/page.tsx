@@ -46,7 +46,7 @@ function formatNumber(value: bigint | number): string {
 }
 
 type CategoryType = "mainstream" | "stream";
-type VotingStatus = "ongoing" | "ended";
+type VotingStatus = "ongoing" | "ended" | "revote" | "deleted";
 type ViewMode = "story" | "dao";
 
 // Mainstream game list (official games)
@@ -199,6 +199,13 @@ export default function VotingPage() {
 
   useEffect(() => {
     loadSessions();
+
+    // Real-time polling: refresh every 10 seconds
+    const interval = setInterval(() => {
+      loadSessions();
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [loadSessions]);
 
   // Vote creation permission check
@@ -226,7 +233,9 @@ export default function VotingPage() {
   }, [categoryType, userCreatedGames]);
 
   const getTimeRemaining = (endTime: string) => {
-    const end = new Date(endTime).getTime();
+    // Fix timezone: ensure end_time is parsed as UTC
+    const endTimeStr = endTime.endsWith('Z') ? endTime : endTime + 'Z';
+    const end = new Date(endTimeStr).getTime();
     const now = Date.now();
     const diff = end - now;
 
@@ -242,7 +251,9 @@ export default function VotingPage() {
   };
 
   const isVotingEnded = (endTime: string) => {
-    return new Date(endTime) < new Date();
+    // Fix timezone: ensure end_time is parsed as UTC
+    const endTimeStr = endTime.endsWith('Z') ? endTime : endTime + 'Z';
+    return new Date(endTimeStr) < new Date();
   };
 
   // Open approval modal
@@ -338,7 +349,22 @@ export default function VotingPage() {
   // filter
   const filteredSessions = sessions.filter((session) => {
     const isEnded = isVotingEnded(session.end_time);
-    return selectedStatus === "ongoing" ? !isEnded : isEnded;
+    const isDeleted = session.is_deleted === true;
+    const needsRevote = session.needsRevote === true;
+    const hasWinner = session.winningOptionId !== undefined;
+
+    if (selectedStatus === "deleted") {
+      return isDeleted;
+    }
+    if (selectedStatus === "revote") {
+      // 시간 종료 + 재투표 필요 + 삭제되지 않음
+      return isEnded && needsRevote && !isDeleted;
+    }
+    if (selectedStatus === "ongoing") {
+      return !isEnded && !isDeleted;
+    }
+    // ended - 시간 종료 + 승자 결정됨 + 삭제되지 않음 (재투표 필요 제외)
+    return isEnded && hasWinner && !needsRevote && !isDeleted;
   });
 
   // DAO proposals filter - filter by selected game + status
@@ -466,6 +492,8 @@ export default function VotingPage() {
                 <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value as VotingStatus)} className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500">
                   <option value="ongoing">{t("voting.ongoing")}</option>
                   <option value="ended">{t("voting.ended")}</option>
+                  <option value="revote">{t("voting.revoteNeeded") || "재투표 필요"}</option>
+                  <option value="deleted">{t("voting.deleted") || "취소됨"}</option>
                 </select>
               </div>
 
@@ -518,20 +546,29 @@ export default function VotingPage() {
 
               {/* Table Body */}
               {filteredSessions.length === 0 ? (
-                <div className="p-12 text-center text-gray-500">{selectedStatus === "ongoing" ? t("voting.noOngoing") : t("voting.noEnded")}</div>
+                <div className="p-12 text-center text-gray-500">
+                  {selectedStatus === "ongoing"
+                    ? t("voting.noOngoing")
+                    : selectedStatus === "revote"
+                    ? (t("voting.noRevote") || "재투표가 필요한 투표가 없습니다")
+                    : selectedStatus === "deleted"
+                    ? (t("voting.noDeleted") || "취소된 투표가 없습니다")
+                    : t("voting.noEnded")}
+                </div>
               ) : (
                 <div className="divide-y divide-gray-700/50">
                   {paginatedSessions.map((session) => {
                     const ended = isVotingEnded(session.end_time);
                     const userVoted = session.userVote !== undefined;
                     const hasWinner = session.winningOptionId !== undefined;
+                    const isDeleted = session.is_deleted === true;
 
                     return (
                       <div key={session.id} onClick={() => handleSessionClick(session)} className="grid grid-cols-12 gap-4 p-4 hover:bg-gray-700/30 cursor-pointer transition-all">
                         {/* Title */}
                         <div className="col-span-4 flex items-center gap-2">
                           <div className="min-w-0">
-                            <p className="text-white font-medium truncate">{session.title}</p>
+                            <p className={`font-medium truncate ${isDeleted ? "text-gray-500 line-through" : "text-white"}`}>{session.title}</p>
                             {session.description && <p className="text-gray-500 text-sm truncate">{session.description}</p>}
                           </div>
                           {session.isOnChain && <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full shrink-0">{t("voting.onchain")}</span>}
@@ -550,11 +587,27 @@ export default function VotingPage() {
                         </div>
 
                         {/* Status */}
-                        <div className="col-span-2 flex items-center justify-center">{ended ? hasWinner ? <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-semibold">{t("voting.decided")}</span> : session.needsRevote ? <span className="px-3 py-1 bg-red-500/20 text-red-400 text-xs rounded-full font-semibold">{t("voting.revoteNeeded")}</span> : <span className="px-3 py-1 bg-gray-600/50 text-gray-400 text-xs rounded-full font-semibold">{t("voting.ended")}</span> : <span className="px-3 py-1 bg-green-500/20 text-green-400 text-xs rounded-full font-semibold">{t("voting.ongoing")}</span>}</div>
+                        <div className="col-span-2 flex items-center justify-center">
+                          {isDeleted ? (
+                            <span className="px-3 py-1 bg-gray-500/20 text-gray-400 text-xs rounded-full font-semibold">{t("voting.deleted") || "취소됨"}</span>
+                          ) : ended ? (
+                            hasWinner ? (
+                              <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full font-semibold">{t("voting.decided")}</span>
+                            ) : session.needsRevote ? (
+                              <span className="px-3 py-1 bg-red-500/20 text-red-400 text-xs rounded-full font-semibold">{t("voting.revoteNeeded")}</span>
+                            ) : (
+                              <span className="px-3 py-1 bg-gray-600/50 text-gray-400 text-xs rounded-full font-semibold">{t("voting.ended")}</span>
+                            )
+                          ) : (
+                            <span className="px-3 py-1 bg-green-500/20 text-green-400 text-xs rounded-full font-semibold">{t("voting.ongoing")}</span>
+                          )}
+                        </div>
 
                         {/* Time Remaining */}
                         <div className="col-span-2 flex items-center justify-center">
-                          <span className={`font-medium text-sm ${ended ? "text-gray-500" : "text-white"}`}>{getTimeRemaining(session.end_time)}</span>
+                          <span className={`font-medium text-sm ${ended || isDeleted ? "text-gray-500" : "text-white"}`}>
+                            {isDeleted ? "-" : getTimeRemaining(session.end_time)}
+                          </span>
                         </div>
                       </div>
                     );

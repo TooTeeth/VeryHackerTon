@@ -130,17 +130,22 @@ export class VygddrasilService {
 
   /**
    * Check if user has any saved progress
+   * Optimized: Uses count query instead of fetching data
    */
   static async hasProgress(walletAddress: string): Promise<boolean> {
     try {
-      const { data, error } = await supabase.from("game_progress").select("id").eq("wallet_address", walletAddress).eq("game_id", "vygddrasil").limit(1);
+      const { count, error } = await supabase
+        .from("game_progress")
+        .select("*", { count: "exact", head: true })
+        .eq("wallet_address", walletAddress)
+        .eq("game_id", "vygddrasil");
 
       if (error) {
         console.error("Error checking progress:", error);
         return false;
       }
 
-      return data && data.length > 0;
+      return (count ?? 0) > 0;
     } catch (error) {
       console.error("Error checking progress:", error);
       return false;
@@ -298,28 +303,47 @@ export class VygddrasilService {
 
   /**
    * Get all characters for a wallet
+   * Optimized: Single query for all progress data instead of N+1 queries
    */
   static async getCharacters(walletAddress: string): Promise<CharacterWithProgress[]> {
     try {
-      const { data: charactersData, error: charError } = await supabase.from("vygddrasilclass").select("*").eq("wallet_address", walletAddress).order("created_at", { ascending: false });
+      // 캐릭터와 진행 상황을 병렬로 조회
+      const [charactersResult, progressResult] = await Promise.all([
+        supabase
+          .from("vygddrasilclass")
+          .select("*")
+          .eq("wallet_address", walletAddress)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("game_progress")
+          .select("*")
+          .eq("wallet_address", walletAddress)
+          .eq("game_id", "vygddrasil")
+          .order("updated_at", { ascending: false }),
+      ]);
 
-      if (charError) throw charError;
+      if (charactersResult.error) throw charactersResult.error;
 
+      const charactersData = charactersResult.data;
       if (!charactersData || charactersData.length === 0) {
         return [];
       }
 
-      // Load progress for each character
-      const charactersWithProgress = await Promise.all(
-        charactersData.map(async (char) => {
-          const { data: progressData } = await supabase.from("game_progress").select("*").eq("wallet_address", walletAddress).eq("game_id", "vygddrasil").eq("character_id", char.id).order("updated_at", { ascending: false }).limit(1).single();
+      // progress를 character_id별로 그룹화 (가장 최신 것만)
+      const progressMap = new Map<number, GameProgress>();
+      if (progressResult.data) {
+        for (const progress of progressResult.data) {
+          if (!progressMap.has(progress.character_id)) {
+            progressMap.set(progress.character_id, progress as GameProgress);
+          }
+        }
+      }
 
-          return {
-            ...char,
-            progress: progressData ? (progressData as GameProgress) : undefined,
-          } as CharacterWithProgress;
-        })
-      );
+      // 캐릭터에 progress 매핑
+      const charactersWithProgress: CharacterWithProgress[] = charactersData.map((char) => ({
+        ...char,
+        progress: progressMap.get(char.id),
+      }));
 
       return charactersWithProgress;
     } catch (error) {

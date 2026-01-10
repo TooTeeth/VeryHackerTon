@@ -7,18 +7,6 @@ import { ethers } from "ethers";
 import { VotingService, VotingSessionWithOptions, VotingOption } from "../../services/voting.service";
 import { DAO_CONTRACT_ADDRESS, DAO_ABI } from "../../lib/daoConfig";
 
-// Legacy contract (fallback)
-const LEGACY_VOTING_CONTRACT_ADDRESS = "0x54507082a8BD3f4aef9a69Ae58DeAD63cAB97244";
-const LegacyVotingAbi = [
-  {
-    inputs: [],
-    name: "VoteOnStory",
-    outputs: [],
-    stateMutability: "payable",
-    type: "function",
-  },
-];
-
 interface VotingModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -30,8 +18,13 @@ interface VotingModalProps {
 export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, session, walletAddress, onVoteComplete }) => {
   const [selectedOption, setSelectedOption] = useState<VotingOption | null>(null);
   const [isVoting, setIsVoting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [canDelete, setCanDelete] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deletedInfo, setDeletedInfo] = useState<{ reason: string; deletedBy: string; deletedAt: string } | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
-  const [votingPhase, setVotingPhase] = useState<"selecting" | "processing" | "result">("selecting");
+  const [votingPhase, setVotingPhase] = useState<"selecting" | "processing" | "result" | "deleted">("selecting");
   const [currentSession, setCurrentSession] = useState<VotingSessionWithOptions>({
     ...session,
     eligibleVoters: session.eligibleVoters || 0,
@@ -40,6 +33,36 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
   const [isCreatingProposal, setIsCreatingProposal] = useState(false);
   const [createdProposalId, setCreatedProposalId] = useState<number | null>(null);
   const [stageName, setStageName] = useState<string>("");
+
+  // Reset state when modal opens with new session
+  useEffect(() => {
+    if (isOpen) {
+      // Reset to initial state
+      setSelectedOption(null);
+      setDeletedInfo(null);
+      setShowDeleteModal(false);
+      setDeleteReason("");
+
+      // Set initial phase based on deletion status
+      if (session.is_deleted === true) {
+        setDeletedInfo({
+          reason: session.delete_reason || "삭제 사유 없음",
+          deletedBy: session.deleted_by || "",
+          deletedAt: session.deleted_at || new Date().toISOString(),
+        });
+        setVotingPhase("deleted");
+      } else {
+        setVotingPhase("selecting");
+      }
+
+      // Update currentSession with new session data
+      setCurrentSession({
+        ...session,
+        eligibleVoters: session.eligibleVoters || 0,
+        needsRevote: session.needsRevote || false,
+      });
+    }
+  }, [isOpen, session]);
 
   // Load stage name
   useEffect(() => {
@@ -51,20 +74,34 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
     }
   }, [isOpen, session.stage_id]);
 
-  // Check on-chain status (VeryDAOIntegrated)
-  // Only on-chain voting when session.proposalId exists
-  // Sessions created from proposal approval don't have proposalId, use Supabase-based voting
-  const isOnChainVoting = session.isOnChain === true && session.proposalId !== undefined;
-
-  // Get latest session data when modal opens
+  // Check if user can delete session
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && walletAddress) {
+      VotingService.canDeleteSession(session.id, walletAddress).then(setCanDelete);
+    }
+  }, [isOpen, session.id, walletAddress]);
+
+  // All voting is now on-chain via VeryDAOIntegrated contract
+
+  // Get latest session data when modal opens + real-time polling
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const refreshSession = () => {
       VotingService.getSessionById(session.id, walletAddress).then((updatedSession) => {
         if (updatedSession) {
           setCurrentSession(updatedSession);
         }
       });
-    }
+    };
+
+    // Initial load
+    refreshSession();
+
+    // Poll every 5 seconds for real-time updates
+    const interval = setInterval(refreshSession, 5000);
+
+    return () => clearInterval(interval);
   }, [isOpen, session.id, walletAddress]);
 
   // Handle time up
@@ -112,15 +149,18 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
   const TEST_MODE = false;
 
   useEffect(() => {
-    if (!isOpen) return;
+    // Don't run timer if modal is closed or session is deleted
+    if (!isOpen || votingPhase === "deleted") return;
 
     const updateTime = () => {
-      const end = new Date(session.end_time).getTime();
+      // Fix timezone: ensure end_time is parsed as UTC
+      const endTimeStr = session.end_time.endsWith('Z') ? session.end_time : session.end_time + 'Z';
+      const end = new Date(endTimeStr).getTime();
       const now = Date.now();
       const diff = Math.max(0, Math.floor((end - now) / 1000));
       setTimeRemaining(diff);
 
-      // Time's up - show result
+      // Time's up - show result (only if not deleted)
       if (diff <= 0 && votingPhase === "selecting") {
         handleTimeUp();
       }
@@ -189,7 +229,7 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
     await handleCreateProposal();
   };
 
-  // Handle vote - uses VeryDAOIntegrated contract (for/against method)
+  // Handle vote - uses VeryDAOIntegrated contract
   const handleVote = async () => {
     if (!selectedOption) {
       toast.error("Please select an option first");
@@ -207,45 +247,27 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
 
-      // Test: use 1 if no proposalId
-      const proposalId = session.proposalId || 1;
+      // ========== On-chain DAO voting (VeryDAOIntegrated) ==========
+      const daoContract = new ethers.Contract(DAO_CONTRACT_ADDRESS, DAO_ABI, signer);
 
-      if (isOnChainVoting) {
-        // ========== On-chain DAO voting (VeryDAOIntegrated) ==========
-        const daoContract = new ethers.Contract(DAO_CONTRACT_ADDRESS, DAO_ABI, signer);
+      toast.info("트랜잭션 처리 중...");
 
-        toast.info("Processing transaction...");
+      // Use proposalId if exists, otherwise use session.id as proposal reference
+      const proposalId = session.proposalId || session.id;
 
-        // vote(uint256 id, bool support) - vote in favor
-        // For story selection, choice selection is recorded in Supabase
-        // Contract only records participation
-        const tx = await daoContract.vote(proposalId, true);
-        await tx.wait();
+      // vote(uint256 id, bool support) - vote in favor
+      // For story selection, choice selection is recorded in Supabase
+      // Contract only records participation
+      const tx = await daoContract.vote(proposalId, true);
+      await tx.wait();
 
-        toast.success("On-chain vote completed!");
+      toast.success("온체인 투표 완료!");
 
-        // Record actual choice in Supabase
-        try {
-          await VotingService.vote(session.id, selectedOption.id, walletAddress);
-        } catch (cacheError) {
-          console.warn("Supabase recording failed:", cacheError);
-        }
-      } else {
-        // ========== Legacy voting (existing method) ==========
-        const contract = new ethers.Contract(LEGACY_VOTING_CONTRACT_ADDRESS, LegacyVotingAbi, signer);
-        const tx = await contract.VoteOnStory({ value: ethers.parseEther("0.1") });
-
-        toast.info("Processing transaction...");
-        await tx.wait();
-
-        // Record vote in Supabase
-        const result = await VotingService.vote(session.id, selectedOption.id, walletAddress);
-
-        if (result.success) {
-          toast.success("Vote completed!");
-        } else {
-          toast.error(result.error || "Vote failed");
-        }
+      // Record actual choice in Supabase
+      try {
+        await VotingService.vote(session.id, selectedOption.id, walletAddress);
+      } catch (cacheError) {
+        console.warn("Supabase recording failed:", cacheError);
       }
 
       // Refresh session
@@ -258,15 +280,15 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
       if (errorMessage.includes("user rejected")) {
-        toast.error("Transaction was cancelled");
+        toast.error("트랜잭션이 취소되었습니다");
       } else if (errorMessage.includes("Already voted")) {
-        toast.error("You have already voted");
+        toast.error("이미 투표하셨습니다");
       } else if (errorMessage.includes("No voting power")) {
-        toast.error("No voting power (insufficient VERY balance)");
+        toast.error("투표권이 없습니다 (VERY 잔액 부족)");
       } else if (errorMessage.includes("Voting inactive")) {
-        toast.error("Voting is not active");
+        toast.error("투표가 활성화되지 않았습니다");
       } else {
-        toast.error(`Vote failed: ${errorMessage}`);
+        toast.error(`투표 실패: ${errorMessage}`);
       }
     } finally {
       setIsVoting(false);
@@ -301,7 +323,7 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
               {stageName}
             </span>
           )}
-          {isOnChainVoting && <span className="inline-block mt-2 ml-2 px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full border border-green-500/50">온체인 투표</span>}
+          <span className="inline-block mt-2 ml-2 px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full border border-green-500/50">온체인 투표</span>
         </div>
 
         {/* Content */}
@@ -313,47 +335,53 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
                 src="/Vygddrasilpage/voting.png"
                 alt="Voting"
                 fill
-                className="object-contain animate-spin-slow"
+                className={`object-contain ${votingPhase === "deleted" ? "grayscale opacity-50" : ""}`}
                 style={{
-                  animation: "spinVariation 4s ease-in-out infinite",
+                  animation: votingPhase === "deleted" ? "none" : "spinVariation 4s ease-in-out infinite",
                 }}
               />
             </div>
           </div>
 
           {/* Status Text */}
-          <p className="text-center text-xl font-bold text-purple-300 mb-4 animate-pulse">세계관을 결정하는 중입니다.</p>
+          {votingPhase !== "deleted" && (
+            <p className="text-center text-xl font-bold text-purple-300 mb-4 animate-pulse">세계관을 결정하는 중입니다.</p>
+          )}
 
-          {/* Timer */}
-          <div className="text-center mb-4">
-            <div className={`text-4xl font-mono font-bold ${timeRemaining <= 5 ? "text-red-500 animate-pulse" : "text-white"}`}>{formatTime(timeRemaining)}</div>
-            <p className="text-gray-400 text-sm mt-1">남은 시간</p>
-          </div>
+          {/* Timer - Hide when deleted */}
+          {votingPhase !== "deleted" && (
+            <div className="text-center mb-4">
+              <div className={`text-4xl font-mono font-bold ${timeRemaining <= 5 ? "text-red-500 animate-pulse" : "text-white"}`}>{formatTime(timeRemaining)}</div>
+              <p className="text-gray-400 text-sm mt-1">남은 시간</p>
+            </div>
+          )}
 
-          {/* 투표 현황 표시 */}
-          <div className="flex justify-center items-center gap-4 mb-6 p-3 bg-gray-800/50 rounded-xl border border-gray-700">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-400">{currentSession.totalVotes}</div>
-              <div className="text-xs text-gray-400">투표 완료</div>
+          {/* 투표 현황 표시 - Hide when deleted */}
+          {votingPhase !== "deleted" && (
+            <div className="flex justify-center items-center gap-4 mb-6 p-3 bg-gray-800/50 rounded-xl border border-gray-700">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-400">{currentSession.totalVotes}</div>
+                <div className="text-xs text-gray-400">투표 완료</div>
+              </div>
+              <div className="text-gray-500">/</div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-gray-300">{currentSession.eligibleVoters || '?'}</div>
+                <div className="text-xs text-gray-400">투표 가능자</div>
+              </div>
+              <div className="ml-4 px-3 py-1 rounded-full text-xs font-bold" style={{
+                backgroundColor: currentSession.totalVotes > 0 && currentSession.eligibleVoters
+                  ? (currentSession.totalVotes / currentSession.eligibleVoters > 0.5 ? 'rgba(34, 197, 94, 0.2)' : 'rgba(234, 179, 8, 0.2)')
+                  : 'rgba(107, 114, 128, 0.2)',
+                color: currentSession.totalVotes > 0 && currentSession.eligibleVoters
+                  ? (currentSession.totalVotes / currentSession.eligibleVoters > 0.5 ? '#22c55e' : '#eab308')
+                  : '#6b7280'
+              }}>
+                {currentSession.totalVotes > 0 && currentSession.eligibleVoters
+                  ? `${Math.round((currentSession.totalVotes / currentSession.eligibleVoters) * 100)}% 참여`
+                  : '0% 참여'}
+              </div>
             </div>
-            <div className="text-gray-500">/</div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-gray-300">{currentSession.eligibleVoters || '?'}</div>
-              <div className="text-xs text-gray-400">투표 가능자</div>
-            </div>
-            <div className="ml-4 px-3 py-1 rounded-full text-xs font-bold" style={{
-              backgroundColor: currentSession.totalVotes > 0 && currentSession.eligibleVoters
-                ? (currentSession.totalVotes / currentSession.eligibleVoters > 0.5 ? 'rgba(34, 197, 94, 0.2)' : 'rgba(234, 179, 8, 0.2)')
-                : 'rgba(107, 114, 128, 0.2)',
-              color: currentSession.totalVotes > 0 && currentSession.eligibleVoters
-                ? (currentSession.totalVotes / currentSession.eligibleVoters > 0.5 ? '#22c55e' : '#eab308')
-                : '#6b7280'
-            }}>
-              {currentSession.totalVotes > 0 && currentSession.eligibleVoters
-                ? `${Math.round((currentSession.totalVotes / currentSession.eligibleVoters) * 100)}% 참여`
-                : '0% 참여'}
-            </div>
-          </div>
+          )}
 
           {/* Options */}
           {votingPhase === "selecting" && (
@@ -388,7 +416,7 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
             <div className="text-center py-8">
               <div className="animate-spin w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-4" />
               <p className="text-white">트랜잭션 처리 중...</p>
-              {isOnChainVoting && <p className="text-gray-400 text-sm mt-2">블록체인에 투표가 기록됩니다</p>}
+              <p className="text-gray-400 text-sm mt-2">블록체인에 투표가 기록됩니다</p>
             </div>
           )}
 
@@ -435,7 +463,7 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
           {/* Vote Button */}
           {votingPhase === "selecting" && !currentSession.userVote && (
             <button onClick={handleVote} disabled={!selectedOption || isVoting || timeRemaining <= 0} className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-xl transition">
-              {isVoting ? "처리 중..." : isOnChainVoting ? "투표하기 (DAO)" : "투표하기 (0.1 VERY)"}
+              {isVoting ? "처리 중..." : "투표하기 (DAO)"}
             </button>
           )}
 
@@ -444,6 +472,111 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
             <div className="text-center py-3 bg-purple-600/20 rounded-xl border border-purple-500/50">
               <p className="text-purple-400 font-bold">투표 완료!</p>
               <p className="text-gray-400 text-sm">결과를 기다리는 중입니다...</p>
+            </div>
+          )}
+
+          {/* Delete Session Button (Admin/Operator only) */}
+          {canDelete && votingPhase === "selecting" && (
+            <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+              <p className="text-red-400 text-xs mb-2">관리자 권한: 이 투표를 삭제할 수 있습니다</p>
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                className="w-full py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg transition"
+              >
+                투표 삭제
+              </button>
+            </div>
+          )}
+
+          {/* Delete Confirmation Modal */}
+          {showDeleteModal && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70">
+              <div className="bg-gray-800 rounded-xl border border-red-500/50 w-full max-w-md mx-4 p-6">
+                <h3 className="text-xl font-bold text-red-400 mb-4">투표 삭제</h3>
+                <p className="text-gray-300 text-sm mb-4">
+                  이 투표를 삭제하시겠습니까? 삭제 사유를 입력해주세요.
+                </p>
+                <textarea
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  placeholder="삭제 사유를 입력하세요..."
+                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-red-500 resize-none"
+                  rows={3}
+                />
+                <div className="flex gap-3 mt-4">
+                  <button
+                    onClick={() => {
+                      setShowDeleteModal(false);
+                      setDeleteReason("");
+                    }}
+                    className="flex-1 py-2 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-lg transition"
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!deleteReason.trim()) {
+                        toast.error("삭제 사유를 입력해주세요");
+                        return;
+                      }
+                      if (isDeleting) return;
+
+                      setIsDeleting(true);
+                      try {
+                        const result = await VotingService.deleteSession(session.id, walletAddress, deleteReason.trim());
+                        if (result.success) {
+                          setDeletedInfo({
+                            reason: deleteReason.trim(),
+                            deletedBy: walletAddress,
+                            deletedAt: new Date().toISOString(),
+                          });
+                          setShowDeleteModal(false);
+                          setVotingPhase("deleted");
+                        } else {
+                          toast.error(result.error || "투표 삭제 실패");
+                        }
+                      } catch (error) {
+                        console.error("Delete session error:", error);
+                        toast.error("투표 삭제 중 오류가 발생했습니다");
+                      } finally {
+                        setIsDeleting(false);
+                      }
+                    }}
+                    disabled={isDeleting || !deleteReason.trim()}
+                    className="flex-1 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-lg transition"
+                  >
+                    {isDeleting ? "삭제 중..." : "삭제"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Deleted Phase */}
+          {votingPhase === "deleted" && (
+            <div className="text-center py-6">
+              <div className="text-5xl mb-4">🗑️</div>
+              <p className="text-red-400 font-bold text-xl mb-2">투표가 삭제되었습니다</p>
+
+              {deletedInfo && (
+                <div className="mt-4 p-4 bg-gray-800/50 border border-gray-700 rounded-xl text-left">
+                  <div className="mb-3">
+                    <p className="text-gray-400 text-xs mb-1">삭제 사유</p>
+                    <p className="text-white text-sm">{deletedInfo.reason}</p>
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>삭제자: {deletedInfo.deletedBy.slice(0, 6)}...{deletedInfo.deletedBy.slice(-4)}</span>
+                    <span>{new Date(deletedInfo.deletedAt).toLocaleString("ko-KR")}</span>
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={onClose}
+                className="mt-4 px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-lg transition"
+              >
+                닫기
+              </button>
             </div>
           )}
 
@@ -467,7 +600,7 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
 
         {/* Info */}
         <div className="px-6 pb-4 text-center">
-          <p className="text-gray-500 text-xs">{isOnChainVoting ? "투표는 블록체인에 영구 기록됩니다 (VERY 잔액 기준 투표권)" : "투표에는 0.1 VERY가 필요합니다"}</p>
+          <p className="text-gray-500 text-xs">투표는 블록체인에 영구 기록됩니다 (VERY 잔액 기준 투표권)</p>
         </div>
       </div>
 
