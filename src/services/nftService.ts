@@ -39,7 +39,7 @@ export interface NFTContract {
 
 // IPFS 주소 변환
 function resolveIPFS(url: string): string {
-  if (!url) return "/nft-placeholder.png";
+  if (!url) return "/VeryLogo.png";
   if (url.startsWith("ipfs://")) {
     return url.replace("ipfs://", "https://ipfs.io/ipfs/");
   }

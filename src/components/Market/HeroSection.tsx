@@ -82,7 +82,7 @@ export default function HeroSection({ topNFTs, onNFTClick }: HeroSectionProps) {
               >
                 <div className={`${position.width} ${position.height} rounded-3xl overflow-hidden bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-white/20 shadow-2xl group-hover:shadow-purple-500/50 transition-all duration-300`}>
                   <div className="relative h-full">
-                    <Image src={nft.metadata?.image || "/nft-placeholder.png"} alt={nft.metadata?.name || "NFT"} fill className="object-cover" unoptimized />
+                    <Image src={nft.metadata?.image || "/VeryLogo.png"} alt={nft.metadata?.name || "NFT"} fill className="object-cover" unoptimized />
                     <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-80"></div>
                     <div className="absolute bottom-0 left-0 right-0 p-5">
                       <p className="text-white text-lg font-bold mb-2">{nft.metadata?.name || `NFT #${nft.token_id}`}</p>

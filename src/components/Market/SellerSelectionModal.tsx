@@ -78,7 +78,7 @@ export default function SellerSelectionModal({ nft, wallet, sortBy: initialSortB
               </h2>
 
               <div className="mb-10 relative h-96  overflow-hidden">
-                <Image src={nft.metadata?.image || "/nft-placeholder.png"} alt={nft.metadata?.name || "NFT"} fill className="object-cover" unoptimized />
+                <Image src={nft.metadata?.image || "/VeryLogo.png"} alt={nft.metadata?.name || "NFT"} fill className="object-cover" unoptimized />
               </div>
 
               <div className="space-y-4">
