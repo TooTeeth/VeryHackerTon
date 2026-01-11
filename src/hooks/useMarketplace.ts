@@ -187,36 +187,21 @@ export function useMarketplace(walletAddress?: string) {
 
           try {
             // veryProvider 사용 (MetaMask 네트워크와 무관하게 Very Network에서 조회)
-            console.log(`📦 [Market] 메타데이터 조회: ${listing.contract_address} #${listing.token_id}`);
             const nftContract = new ethers.Contract(listing.contract_address, ["function uri(uint256 tokenId) external view returns (string memory)"], veryProvider);
             let tokenURI = await nftContract.uri(listing.token_id);
-            console.log(`📄 [Market] tokenURI 원본:`, tokenURI);
             if (tokenURI.startsWith("ipfs://")) {
               tokenURI = tokenURI.replace("ipfs://", "https://ipfs.io/ipfs/");
-              console.log(`✅ [Market] IPFS 변환됨:`, tokenURI);
             }
-            console.log(`🌐 [Market] fetch 시작:`, tokenURI);
             const response = await fetch(tokenURI);
-            console.log(`📡 [Market] fetch 응답:`, response.status, response.statusText);
-            if (!response.ok) {
-              console.error(`❌ [Market] fetch 실패:`, response.status, response.statusText);
-              throw new Error(`HTTP ${response.status}`);
-            }
             const json = await response.json();
-            console.log(`✅ [Market] 메타데이터:`, json);
-            console.log(`🖼️ [Market] 이미지 URL:`, json.image);
-
-            const resolvedImage = (json.image || "").replace("ipfs://", "https://ipfs.io/ipfs/") || metadata.image;
-            console.log(`🖼️ [Market] 변환된 이미지 URL:`, resolvedImage);
 
             metadata = {
               name: json.name || metadata.name,
               description: json.description || metadata.description,
-              image: resolvedImage,
+              image: (json.image || "").replace("ipfs://", "https://ipfs.io/ipfs/") || metadata.image,
               category: (json.category as Category) || metadata.category,
             };
-          } catch (error) {
-            console.error(`❌ [Market] 메타데이터 로드 실패 (${listing.contract_address} #${listing.token_id}):`, error);
+          } catch {
             // metadata fetch failed, use defaults
           }
           metadataCache.set(metaKey, metadata);

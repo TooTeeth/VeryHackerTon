@@ -39,97 +39,54 @@ export interface NFTContract {
 
 // IPFS 주소 변환
 function resolveIPFS(url: string): string {
-  console.log("🔗 [IPFS] 원본 URL:", url);
-  if (!url) {
-    console.warn("⚠️ [IPFS] URL이 비어있음 → placeholder 사용");
-    return "/nft-placeholder.png";
-  }
+  if (!url) return "/nft-placeholder.png";
   if (url.startsWith("ipfs://")) {
-    const resolved = url.replace("ipfs://", "https://ipfs.io/ipfs/");
-    console.log("✅ [IPFS] 변환됨:", resolved);
-    return resolved;
+    return url.replace("ipfs://", "https://ipfs.io/ipfs/");
   }
-  console.log("ℹ️ [IPFS] 변환 불필요:", url);
   return url;
 }
 
 // ERC721 NFT 조회
 export async function fetchERC721NFT(contractAddress: string, tokenId: string) {
-  console.log(`📦 [ERC721] 조회 시작: ${contractAddress} #${tokenId}`);
   const nft = new ethers.Contract(contractAddress, ERC721_ABI, provider);
   const rawUri = await nft.tokenURI(tokenId);
-  console.log(`📄 [ERC721] tokenURI 원본:`, rawUri);
   const tokenUri = resolveIPFS(rawUri);
+  const metadata = await fetch(tokenUri).then((r) => r.json());
 
-  console.log(`🌐 [ERC721] 메타데이터 fetch 시작:`, tokenUri);
-  try {
-    const response = await fetch(tokenUri);
-    console.log(`📡 [ERC721] fetch 응답 상태:`, response.status, response.statusText);
-    if (!response.ok) {
-      console.error(`❌ [ERC721] fetch 실패:`, response.status, response.statusText);
-      throw new Error(`HTTP ${response.status}`);
-    }
-    const metadata = await response.json();
-    console.log(`✅ [ERC721] 메타데이터:`, metadata);
-    console.log(`🖼️ [ERC721] 이미지 URL:`, metadata.image);
-
-    return {
-      tokenId,
-      contractAddress,
-      tokenType: "ERC721" as const,
-      name: metadata.name ?? metadata.title ?? `#${tokenId}`,
-      description: metadata.description ?? "",
-      image: resolveIPFS(metadata.image),
-      metadata,
-      category: metadata.category ?? "전체",
-    };
-  } catch (error) {
-    console.error(`❌ [ERC721] 메타데이터 로드 실패:`, error);
-    throw error;
-  }
+  return {
+    tokenId,
+    contractAddress,
+    tokenType: "ERC721" as const,
+    name: metadata.name ?? metadata.title ?? `#${tokenId}`,
+    description: metadata.description ?? "",
+    image: resolveIPFS(metadata.image),
+    metadata,
+    category: metadata.category ?? "전체",
+  };
 }
 
 // ERC1155 NFT 조회
 export async function fetchERC1155NFT(contractAddress: string, tokenId: string, wallet: string) {
-  console.log(`📦 [ERC1155] 조회 시작: ${contractAddress} #${tokenId} (지갑: ${wallet})`);
   const nft = new ethers.Contract(contractAddress, ERC1155_ABI, provider);
   const balance = await nft.balanceOf(wallet, tokenId);
-  console.log(`💰 [ERC1155] 잔액:`, balance.toString());
   if (balance.toString() === "0") return null;
 
   let rawUri = await nft.uri(tokenId);
-  console.log(`📄 [ERC1155] URI 원본:`, rawUri);
   rawUri = rawUri.replace("{id}", tokenId);
-  console.log(`📄 [ERC1155] URI (id 치환):`, rawUri);
   const tokenUri = resolveIPFS(rawUri);
+  const metadata = await fetch(tokenUri).then((r) => r.json());
 
-  console.log(`🌐 [ERC1155] 메타데이터 fetch 시작:`, tokenUri);
-  try {
-    const response = await fetch(tokenUri);
-    console.log(`📡 [ERC1155] fetch 응답 상태:`, response.status, response.statusText);
-    if (!response.ok) {
-      console.error(`❌ [ERC1155] fetch 실패:`, response.status, response.statusText);
-      throw new Error(`HTTP ${response.status}`);
-    }
-    const metadata = await response.json();
-    console.log(`✅ [ERC1155] 메타데이터:`, metadata);
-    console.log(`🖼️ [ERC1155] 이미지 URL:`, metadata.image);
-
-    return {
-      tokenId,
-      contractAddress,
-      tokenType: "ERC1155" as const,
-      name: metadata.name ?? `#${tokenId}`,
-      description: metadata.description ?? "",
-      image: resolveIPFS(metadata.image),
-      metadata,
-      balance: balance.toString(),
-      category: metadata.category ?? "전체",
-    };
-  } catch (error) {
-    console.error(`❌ [ERC1155] 메타데이터 로드 실패:`, error);
-    throw error;
-  }
+  return {
+    tokenId,
+    contractAddress,
+    tokenType: "ERC1155" as const,
+    name: metadata.name ?? `#${tokenId}`,
+    description: metadata.description ?? "",
+    image: resolveIPFS(metadata.image),
+    metadata,
+    balance: balance.toString(),
+    category: metadata.category ?? "전체",
+  };
 }
 
 // 지갑 NFT 조회
