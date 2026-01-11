@@ -42,7 +42,7 @@ export default function DetailModal({ nft, onClose }: DetailModalProps) {
           </button>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div className="relative aspect-square rounded-2xl overflow-hidden">
-              <Image src={metadata?.image || "/VeryLogo.png"} alt={metadata?.name || "NFT"} fill className="object-cover" unoptimized />
+              <Image src={metadata?.image || "/nft-placeholder.png"} alt={metadata?.name || "NFT"} fill className="object-cover" unoptimized />
             </div>
             <div className="flex flex-col">
               <span className="text-purple-400 text-sm font-semibold mb-2">{category}</span>

@@ -48,7 +48,7 @@ export default function GroupedMarketNFTCard({ nft, wallet, onBuy }: GroupedMark
       <div className="absolute -inset-3 bg-white/15 backdrop-blur-md shadow-lg" />
       <div className="relative overflow-hidden transition-all duration-500 cursor-pointer" style={{ background: "linear-gradient(180deg, #2a2a3e 0%, #1a1a2e 100%)", border: "none" }}>
         <div className="relative h-56 overflow-hidden">
-          <Image src={nft.metadata?.image || "/VeryLogo.png"} alt={nft.metadata?.name || "NFT"} fill className="object-cover transition-transform duration-700 group-hover:scale-110" unoptimized />
+          <Image src={nft.metadata?.image || "/nft-placeholder.png"} alt={nft.metadata?.name || "NFT"} fill className="object-cover transition-transform duration-700 group-hover:scale-110" unoptimized />
 
           {/* 등록 수량 - 오른쪽 상단 */}
           <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-sm text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-white/20">{nft.totalAmount} listed</div>

@@ -180,7 +180,7 @@ export function useMarketplace(walletAddress?: string) {
           metadata = {
             name: `NFT #${listing.token_id}`,
             description: "Epic item for your adventure",
-            image: "/VeryLogo.png",
+            image: "/nft-placeholder.png",
             category: "전체" as Category,
           };
 
