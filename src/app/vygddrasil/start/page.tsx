@@ -10,7 +10,8 @@ import { StageContent, ChoiceList, LoadingSpinner, GameSidebar, defaultViewerSet
 import { GAME_CONFIG } from "../../../constants/vygddrasil.constants";
 import type { ViewerSettings } from "../../../components/Vygdrasil";
 import type { Character } from "../../../types/vygddrasil.types";
-import { supabase } from "../../../lib/supabaseClient";
+import { getSupabaseClient } from "../../../lib/supabaseClient";
+const supabase = getSupabaseClient();
 
 // BGM
 const BGM_PATH = "/sounds/bgm/ThehillwheretheWindPasses-UG.mp3";

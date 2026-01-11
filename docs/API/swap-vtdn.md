@@ -83,4 +83,4 @@
 
 walletAddress는 소문자로 변환되어 처리됩니다.
 
-Supabase URL과 KEY는 환경변수(SUPABASE_URL, SUPABASE_KEY)로 설정되어 있어야 합니다.
+Supabase URL과 KEY는 환경변수(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)로 설정되어 있어야 합니다.

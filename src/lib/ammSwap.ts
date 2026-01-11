@@ -1,7 +1,6 @@
 // lib/ammSwap.ts
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+import { getSupabaseClient } from "./supabaseClient";
+const supabase = getSupabaseClient();
 
 interface Pool {
   id: number;

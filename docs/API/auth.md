@@ -70,4 +70,4 @@ HTTP 상태 코드
 
 ### 참고사항
 
-Supabase 인증 키와 URL은 환경 변수(SUPABASE_URL, SUPABASE_KEY)로 설정되어 있어야 합니다.
+Supabase 인증 키와 URL은 환경 변수(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)로 설정되어 있어야 합니다.

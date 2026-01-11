@@ -1,5 +1,6 @@
 // lib/poolStats.ts
-import { supabase } from './supabaseClient';
+import { getSupabaseClient } from './supabaseClient';
+const supabase = getSupabaseClient();
 
 interface PoolStats {
   volume24h: number;

@@ -1,5 +1,6 @@
 // lib/services/supabaseMarketplace.ts
-import { supabase } from "./supabaseClient";
+import { getSupabaseClient } from "./supabaseClient";
+const supabase = getSupabaseClient();
 export type TransactionType = "listing" | "buy" | "sell" | "bid" | "cancel";
 
 // 타입 정의

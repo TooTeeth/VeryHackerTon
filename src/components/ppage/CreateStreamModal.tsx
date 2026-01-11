@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, ChangeEvent } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { getSupabaseClient } from "../../lib/supabaseClient";
+const supabase = getSupabaseClient();
 import { toast } from "react-toastify";
 import { uploadGameImage } from "../../lib/uploadGameImage";
 import CreateButton from "./CreateButton";

@@ -12,7 +12,8 @@ import {
   BattleMode,
   BattleRewards,
 } from "../types/vygddrasil.types";
-import { supabase } from "../lib/supabaseClient";
+import { getSupabaseClient } from "../lib/supabaseClient";
+const supabase = getSupabaseClient();
 
 export class VygddrasilService {
   /**

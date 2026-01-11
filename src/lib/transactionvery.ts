@@ -1,6 +1,7 @@
 import { parseUnits, ethers } from "ethers";
 import SwapvtdnABI from "../contracts/abi/Swapvtdn.json";
-import { supabase } from "./supabaseClient";
+import { getSupabaseClient } from "./supabaseClient";
+const supabase = getSupabaseClient();
 
 const swapContractAddress = "0x8A0136c306f8Ec15A9011E40bF98f25bca106988";
 

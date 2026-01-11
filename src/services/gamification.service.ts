@@ -3,7 +3,8 @@
 // Vygddrasil Game - Achievements, Daily Quests, Ranking, Statistics, Notifications
 // ============================================
 
-import { supabase } from "../lib/supabaseClient";
+import { getSupabaseClient } from "../lib/supabaseClient";
+const supabase = getSupabaseClient();
 import type {
   Achievement,
   AchievementProgress,

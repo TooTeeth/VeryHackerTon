@@ -54,7 +54,7 @@ wepin은 로그인만 가능. 현재 사용 중지.
 NEXT_PUBLIC_WEPIN_APP_ID=your_wepin_app_id
 NEXT_PUBLIC_WEPIN_APP_KEY=your_wepin_app_key
 
-SUPABASE_KEY=your_supabase_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_key
 SUPABASE_URL=your_supabase_url
 
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url

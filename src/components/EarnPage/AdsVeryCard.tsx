@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useWallet } from "../../app/context/WalletContext";
-import { supabase } from "../../lib/supabaseClient";
+import { getSupabaseClient } from "../../lib/supabaseClient";
+const supabase = getSupabaseClient();
 import Image from "next/image";
 import { FcApproval } from "react-icons/fc";
 import { toast } from "react-toastify";

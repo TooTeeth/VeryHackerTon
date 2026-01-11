@@ -1,7 +1,8 @@
 // services/voting.service.ts
 // On-chain first + Supabase caching hybrid version
 
-import { supabase } from "../lib/supabaseClient";
+import { getSupabaseClient } from "../lib/supabaseClient";
+const supabase = getSupabaseClient();
 
 // ========== TYPES ==========
 export interface VotingSession {

@@ -65,4 +65,4 @@
 
 ## 참고사항
 
-Supabase URL과 KEY는 환경변수(SUPABASE_URL, SUPABASE_KEY)로 설정되어 있어야 합니다.
+Supabase URL과 KEY는 환경변수(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)로 설정되어 있어야 합니다.

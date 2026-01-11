@@ -1,4 +1,5 @@
-import { supabase } from "./supabaseClient";
+import { getSupabaseClient } from "./supabaseClient";
+const supabase = getSupabaseClient();
 
 export async function uploadGameImage(file: File): Promise<string | null> {
   const fileExt = file.name.split(".").pop();

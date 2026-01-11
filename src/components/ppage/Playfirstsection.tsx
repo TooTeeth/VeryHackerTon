@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import GameCard from "./GameCard";
-import { supabase } from "../../lib/supabaseClient";
+import { getSupabaseClient } from "../../lib/supabaseClient";
+const supabase = getSupabaseClient();
 import { Pagination } from "./Pagination";
 import PlatformFilter from "./GameFilter";
 import CreateStreamModal from "./CreateStreamModal";

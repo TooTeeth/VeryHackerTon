@@ -4,7 +4,8 @@ import { useState } from "react";
 import Image from "next/image";
 import { useWallet } from "../../app/context/WalletContext";
 import { useRouter } from "next/navigation";
-import { supabase } from "../../lib/supabaseClient";
+import { getSupabaseClient } from "../../lib/supabaseClient";
+const supabase = getSupabaseClient();
 
 const classStats = {
   assassin: { str: 5, agi: 12, int: 3, hp: 90, mp: 60, luck: 10 },

@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { supabase } from "../../lib/supabaseClient";
+import { getSupabaseClient } from "../../lib/supabaseClient";
+const supabase = getSupabaseClient();
 import { getPoolStats, formatNumber } from "../../lib/poolStats";
 
 interface PriceData {
