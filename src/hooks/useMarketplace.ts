@@ -67,10 +67,7 @@ export function useMarketplace(walletAddress?: string) {
 
     try {
       // NFT와 리스팅을 병렬로 로드
-      const [userNFTs, allListings] = await Promise.all([
-        fetchUserNFTs(walletAddress, NFT_CONTRACT_LIST),
-        getActiveListings(),
-      ]);
+      const [userNFTs, allListings] = await Promise.all([fetchUserNFTs(walletAddress, NFT_CONTRACT_LIST), getActiveListings()]);
       console.log("📦 지갑의 NFT:", userNFTs.length, "개");
 
       const myMarketListings = allListings.filter((l) => l.seller_address.toLowerCase() === walletAddress.toLowerCase());
