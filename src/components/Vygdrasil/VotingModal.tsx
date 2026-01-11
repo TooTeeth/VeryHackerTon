@@ -33,6 +33,8 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
   const [isCreatingProposal, setIsCreatingProposal] = useState(false);
   const [createdProposalId, setCreatedProposalId] = useState<number | null>(null);
   const [stageName, setStageName] = useState<string>("");
+  const [isStartingRevote, setIsStartingRevote] = useState(false);
+  const [revoteDuration, setRevoteDuration] = useState<number>(1); // 기본 1분
 
   // Reset state when modal opens with new session
   useEffect(() => {
@@ -42,8 +44,14 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
       setDeletedInfo(null);
       setShowDeleteModal(false);
       setDeleteReason("");
+      setIsStartingRevote(false);
+      setRevoteDuration(1);
 
-      // Set initial phase based on deletion status
+      // Check if voting has already ended
+      const endTimeStr = session.end_time.endsWith('Z') ? session.end_time : session.end_time + 'Z';
+      const isAlreadyEnded = new Date(endTimeStr) < new Date();
+
+      // Set initial phase based on deletion status or end time
       if (session.is_deleted === true) {
         setDeletedInfo({
           reason: session.delete_reason || "삭제 사유 없음",
@@ -51,7 +59,11 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
           deletedAt: session.deleted_at || new Date().toISOString(),
         });
         setVotingPhase("deleted");
+      } else if (isAlreadyEnded && !session.needsRevote) {
+        // Already ended with winner - go straight to result without toast
+        setVotingPhase("result");
       } else {
+        // 투표 진행 중이거나 재투표 필요 - selecting 상태로 유지
         setVotingPhase("selecting");
       }
 
@@ -104,8 +116,8 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
     return () => clearInterval(interval);
   }, [isOpen, session.id, walletAddress]);
 
-  // Handle time up
-  const handleTimeUp = useCallback(async () => {
+  // Handle time up - called when timer reaches 0 in real-time (not when opening already-ended vote)
+  const handleTimeUp = useCallback(async (showToast: boolean = false) => {
     setVotingPhase("result");
 
     // Refresh session to get final results
@@ -119,27 +131,24 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
         setCurrentSession(updatedSession);
       }
 
-      // Majority check: must exceed half of total votes to win
-      const totalVotes = sessionToCheck.totalVotes;
-      const halfVotes = totalVotes / 2;
+      // Only show toast when timer expires in real-time (not when opening ended vote)
+      if (showToast) {
+        // Majority check: must exceed half of total votes to win
+        const totalVotes = sessionToCheck.totalVotes;
+        const halfVotes = totalVotes / 2;
 
-      // Find option that exceeded majority
-      const winnerOption = sessionToCheck.options.find(opt => opt.vote_count > halfVotes);
+        // Find option that exceeded majority
+        const winnerOption = sessionToCheck.options.find(opt => opt.vote_count > halfVotes);
 
-      if (winnerOption) {
-        // Majority achieved - winner!
-        toast.success(`Vote result: "${winnerOption.choice_text}" was selected!`);
-        onVoteComplete(winnerOption.choice_id);
-      } else if (totalVotes > 0) {
-        // Votes exist but no majority - revote needed
-        toast.warning("No option achieved majority. Revote is required!");
-        // Update needsRevote state
-        setCurrentSession(prev => ({ ...prev, needsRevote: true }));
-        // Keep revote modal open (don't call onVoteComplete)
-      } else {
-        // No one voted - revote needed
-        toast.warning("No votes were cast. Revote is required!");
-        setCurrentSession(prev => ({ ...prev, needsRevote: true }));
+        if (winnerOption) {
+          toast.success(`투표 결과: "${winnerOption.choice_text}" 선택됨!`);
+          // 당선자가 있을 때만 onVoteComplete 호출 (모달 닫힘)
+          // 재투표 필요 시에는 모달을 닫지 않음
+          onVoteComplete(winnerOption.choice_id);
+        } else if (sessionToCheck.needsRevote) {
+          toast.warning("재투표가 필요합니다");
+          // 재투표 필요 시 모달 닫지 않음 - onVoteComplete 호출하지 않음
+        }
       }
     }
   }, [session.id, walletAddress, onVoteComplete, currentSession]);
@@ -154,15 +163,17 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
 
     const updateTime = () => {
       // Fix timezone: ensure end_time is parsed as UTC
-      const endTimeStr = session.end_time.endsWith('Z') ? session.end_time : session.end_time + 'Z';
+      // 중요: currentSession.end_time을 사용해야 재투표 시 새 end_time이 반영됨
+      const endTimeStr = currentSession.end_time.endsWith('Z') ? currentSession.end_time : currentSession.end_time + 'Z';
       const end = new Date(endTimeStr).getTime();
       const now = Date.now();
       const diff = Math.max(0, Math.floor((end - now) / 1000));
       setTimeRemaining(diff);
 
-      // Time's up - show result (only if not deleted)
-      if (diff <= 0 && votingPhase === "selecting") {
-        handleTimeUp();
+      // Time's up - show result (only if not deleted and not needing revote)
+      // 재투표 필요 상태에서는 handleTimeUp을 호출하지 않음
+      if (diff <= 0 && votingPhase === "selecting" && !currentSession.needsRevote) {
+        handleTimeUp(true);
       }
     };
 
@@ -170,7 +181,7 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
     const interval = setInterval(updateTime, 1000);
 
     return () => clearInterval(interval);
-  }, [isOpen, session.end_time, votingPhase, handleTimeUp]);
+  }, [isOpen, currentSession.end_time, votingPhase, handleTimeUp, currentSession.needsRevote]);
 
   // Create test proposal (60 second voting period)
   const handleCreateProposal = async () => {
@@ -218,15 +229,39 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
     }
   };
 
-  // Start revote
+  // Start revote - 관리자가 수동으로 재투표 시작 (트랜잭션 없이 DB만 업데이트)
   const handleStartRevote = async () => {
-    // Reset voting state
-    setVotingPhase("selecting");
-    setSelectedOption(null);
+    if (isStartingRevote) return;
 
-    // Create new proposal (60 seconds)
-    toast.info("Creating new proposal for revote...");
-    await handleCreateProposal();
+    setIsStartingRevote(true);
+
+    try {
+      // DB에서 end_time 연장
+      const revoteResult = await VotingService.startRevote(session.id, walletAddress, revoteDuration);
+
+      if (!revoteResult.success) {
+        toast.error(revoteResult.error || "재투표 시작 실패");
+        return;
+      }
+
+      toast.success("재투표가 시작되었습니다!");
+
+      // 세션 새로고침 - DB에서 새 end_time을 가져옴
+      const updatedSession = await VotingService.getSessionById(session.id, walletAddress);
+      if (updatedSession) {
+        setCurrentSession(updatedSession);
+      }
+
+      // Reset voting state for new round
+      setVotingPhase("selecting");
+      setSelectedOption(null);
+
+    } catch (error: unknown) {
+      console.error("Start revote error:", error);
+      toast.error("재투표 시작 실패");
+    } finally {
+      setIsStartingRevote(false);
+    }
   };
 
   // Handle vote - uses VeryDAOIntegrated contract
@@ -337,15 +372,50 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
                 fill
                 className={`object-contain ${votingPhase === "deleted" ? "grayscale opacity-50" : ""}`}
                 style={{
-                  animation: votingPhase === "deleted" ? "none" : "spinVariation 4s ease-in-out infinite",
+                  animation: votingPhase === "deleted" || currentSession.needsRevote ? "none" : "spinVariation 8s ease-in-out infinite",
                 }}
               />
             </div>
           </div>
 
           {/* Status Text */}
-          {votingPhase !== "deleted" && (
+          {votingPhase !== "deleted" && !currentSession.needsRevote && (
             <p className="text-center text-xl font-bold text-purple-300 mb-4 animate-pulse">세계관을 결정하는 중입니다.</p>
+          )}
+
+          {/* Revote Notice */}
+          {currentSession.needsRevote && (
+            <div className="text-center mb-4">
+              <p className="text-xl font-bold text-red-400 mb-2">재투표가 필요합니다!</p>
+              <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-4">
+                <p className="text-red-300 text-sm mb-3">
+                  과반수를 획득한 선택지가 없습니다. 관리자가 재투표를 시작해야 합니다.
+                </p>
+                {canDelete && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-center gap-2">
+                      <label className="text-gray-300 text-sm">투표 시간:</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="60"
+                        value={revoteDuration}
+                        onChange={(e) => setRevoteDuration(Math.max(1, Math.min(60, parseInt(e.target.value) || 1)))}
+                        className="w-16 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-center text-sm"
+                      />
+                      <span className="text-gray-300 text-sm">분</span>
+                    </div>
+                    <button
+                      onClick={handleStartRevote}
+                      disabled={isStartingRevote}
+                      className="w-full py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-lg transition"
+                    >
+                      {isStartingRevote ? "재투표 시작 중..." : `재투표 시작 (${revoteDuration}분)`}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
 
           {/* Timer - Hide when deleted */}
@@ -475,10 +545,13 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
             </div>
           )}
 
-          {/* Delete Session Button (Admin/Operator only) */}
-          {canDelete && votingPhase === "selecting" && (
+          {/* Delete Session Button (Admin/Operator only) - Available in selecting and result phases */}
+          {canDelete && (votingPhase === "selecting" || votingPhase === "result") && (
             <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
-              <p className="text-red-400 text-xs mb-2">관리자 권한: 이 투표를 삭제할 수 있습니다</p>
+              <p className="text-red-400 text-xs mb-2">
+                관리자 권한: 이 투표를 삭제할 수 있습니다
+                {currentSession.needsRevote && " (재투표 필요 상태)"}
+              </p>
               <button
                 onClick={() => setShowDeleteModal(true)}
                 className="w-full py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg transition"
@@ -580,19 +653,11 @@ export const VotingModal: React.FC<VotingModalProps> = ({ isOpen, onClose, sessi
             </div>
           )}
 
-          {/* Close Button / Revote Button */}
-          {votingPhase === "result" && (
-            <div className="mt-4 space-y-2">
-              {currentSession.needsRevote ? (
-                <button
-                  onClick={handleStartRevote}
-                  className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition"
-                >
-                  재투표 시작
-                </button>
-              ) : null}
+          {/* Close Button */}
+          {votingPhase === "result" && !currentSession.needsRevote && (
+            <div className="mt-4">
               <button onClick={onClose} className="w-full py-3 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition">
-                {currentSession.needsRevote ? '나중에' : '확인'}
+                확인
               </button>
             </div>
           )}

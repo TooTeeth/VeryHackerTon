@@ -495,6 +495,45 @@ export class VotingService {
   }
 
   /**
+   * Start revote - extends end_time and resets votes
+   * Keeps existing votes but extends the voting period
+   */
+  static async startRevote(
+    sessionId: number,
+    walletAddress: string,
+    durationMinutes: number = 1 // 기본 1분 (60초)
+  ): Promise<{ success: boolean; newEndTime?: string; error?: string }> {
+    try {
+      // Check permission
+      const canDelete = await this.canDeleteSession(sessionId, walletAddress);
+      if (!canDelete) {
+        return { success: false, error: "Permission denied" };
+      }
+
+      // Calculate new end time
+      const now = new Date();
+      const newEndTime = new Date(now.getTime() + durationMinutes * 60 * 1000);
+
+      // Update session with new end_time
+      const { error: updateError } = await supabase
+        .from("voting_sessions")
+        .update({
+          end_time: newEndTime.toISOString(),
+          is_active: true,
+          updated_at: now.toISOString(),
+        })
+        .eq("id", sessionId);
+
+      if (updateError) throw updateError;
+
+      return { success: true, newEndTime: newEndTime.toISOString() };
+    } catch (error) {
+      console.error("Error starting revote:", error);
+      return { success: false, error: "Failed to start revote" };
+    }
+  }
+
+  /**
    * End voting session (for operators)
    */
   static async endSession(sessionId: number): Promise<{ success: boolean }> {
@@ -531,11 +570,23 @@ export class VotingService {
     eligibleVoters: number,
     isEnded: boolean
   ): { winnerId?: number; needsRevote: boolean } {
-    if (totalVotes === 0) {
-      return { winnerId: undefined, needsRevote: isEnded };
+    // If voting hasn't ended yet, no winner and no revote needed
+    if (!isEnded) {
+      return { winnerId: undefined, needsRevote: false };
     }
 
-    // Majority = more than half of voters
+    // Voting ended - check participation rate
+    // Need at least 50% of eligible voters to participate for valid result
+    const participationRate = eligibleVoters > 0 ? totalVotes / eligibleVoters : 0;
+    const MIN_PARTICIPATION = 0.5; // 50% minimum participation
+
+    if (totalVotes === 0 || participationRate < MIN_PARTICIPATION) {
+      // Not enough participation - revote needed
+      return { winnerId: undefined, needsRevote: true };
+    }
+
+    // Enough participation - check for majority winner
+    // Majority = more than half of total votes cast
     const halfVotes = totalVotes / 2;
     const winner = options.find(opt => opt.voteCount > halfVotes);
 
@@ -543,8 +594,8 @@ export class VotingService {
       return { winnerId: winner.id, needsRevote: false };
     }
 
-    // If voting ended without majority, revote is needed
-    return { winnerId: undefined, needsRevote: isEnded };
+    // No majority winner - revote needed
+    return { winnerId: undefined, needsRevote: true };
   }
 
   private static findWinningOption(

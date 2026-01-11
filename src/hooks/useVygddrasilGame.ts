@@ -425,17 +425,20 @@ export const useVygddrasilGame = (
         return;
       }
 
-      // Check if this is a voting choice - if so, open voting modal
-      const matchingChoice = choices.find((c) => c.value === value);
-      if (matchingChoice?.isVotingChoice && matchingChoice.votingSessionId) {
+      // 현재 스테이지에 투표 세션이 있는지 확인
+      // 투표가 진행 중이거나 재투표가 필요하면 어떤 선택지를 클릭해도 투표 모달을 열어야 함
+      const votingChoice = choices.find((c) => c.isVotingChoice && c.votingSessionId);
+      if (votingChoice && votingChoice.votingSessionId) {
         // 투표 세션 정보 가져오기
-        const session = await VotingService.getSessionById(matchingChoice.votingSessionId, walletAddress);
+        const session = await VotingService.getSessionById(votingChoice.votingSessionId, walletAddress);
         if (session) {
-          // 투표가 아직 진행 중인지 확인
           const now = new Date();
-          const endTime = new Date(session.end_time);
-          if (now < endTime) {
-            // 투표 진행 중 - 모달 열기
+          const endTimeStr = session.end_time.endsWith('Z') ? session.end_time : session.end_time + 'Z';
+          const endTime = new Date(endTimeStr);
+          const isEnded = now >= endTime;
+
+          // 투표 진행 중이거나 재투표가 필요한 경우 모달 열기
+          if (!isEnded || session.needsRevote) {
             setCurrentVotingSession(session);
             setPendingVotingChoice({ value, choiceText });
             setVotingModalOpen(true);

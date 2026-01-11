@@ -37,12 +37,70 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState<string>("");
 
+  // Stage validation states
+  const [stageChoiceCount, setStageChoiceCount] = useState<number>(0);
+  const [stageHasOngoingVote, setStageHasOngoingVote] = useState<boolean>(false);
+  const [isCheckingStage, setIsCheckingStage] = useState<boolean>(false);
+
+  // Custom duration input
+  const [durationMode, setDurationMode] = useState<"preset" | "custom">("preset");
+  const [customDays, setCustomDays] = useState(0);
+  const [customHours, setCustomHours] = useState(1);
+  const [customMinutes, setCustomMinutes] = useState(0);
+
+  // Calculate total minutes from custom input
+  const getCustomTotalMinutes = () => {
+    return customDays * 24 * 60 + customHours * 60 + customMinutes;
+  };
+
+  // Update durationMinutes when custom values change
+  useEffect(() => {
+    if (durationMode === "custom") {
+      const total = customDays * 24 * 60 + customHours * 60 + customMinutes;
+      setDurationMinutes(total > 0 ? total : 1); // Minimum 1 minute
+    }
+  }, [durationMode, customDays, customHours, customMinutes]);
+
   // Load stage list
   useEffect(() => {
     if (isOpen) {
       VotingService.getStages().then(setStages);
     }
   }, [isOpen]);
+
+  // Check stage validity when selected
+  useEffect(() => {
+    if (!selectedStage) {
+      setStageChoiceCount(0);
+      setStageHasOngoingVote(false);
+      return;
+    }
+
+    const checkStage = async () => {
+      setIsCheckingStage(true);
+      try {
+        // Check choice count
+        const choices = await VotingService.getChoicesByStage(selectedStage.slug);
+        setStageChoiceCount(choices.length);
+
+        // Check ongoing votes for this stage
+        const sessions = await VotingService.getSessionsByGame(gameId);
+        const hasOngoing = sessions.some((s) => {
+          if (s.stage_id !== selectedStage.id) return false;
+          if (s.is_deleted) return false;
+          const endTimeStr = s.end_time.endsWith('Z') ? s.end_time : s.end_time + 'Z';
+          return new Date(endTimeStr) > new Date();
+        });
+        setStageHasOngoingVote(hasOngoing);
+      } catch (error) {
+        console.error("Error checking stage:", error);
+      } finally {
+        setIsCheckingStage(false);
+      }
+    };
+
+    checkStage();
+  }, [selectedStage, gameId]);
 
   const handleSubmit = async () => {
     if (!title.trim()) {
@@ -204,33 +262,143 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
                 </option>
               ))}
             </select>
+
+            {/* Stage validation messages */}
+            {selectedStage && !isCheckingStage && (
+              <div className="mt-2">
+                {stageChoiceCount < 2 && (
+                  <p className="text-red-400 text-sm">
+                    선택지가 {stageChoiceCount}개입니다. 최소 2개 이상 필요합니다.
+                  </p>
+                )}
+                {stageHasOngoingVote && (
+                  <p className="text-yellow-400 text-sm">
+                    이 스테이지에 진행 중인 투표가 있습니다.
+                  </p>
+                )}
+                {stageChoiceCount >= 2 && !stageHasOngoingVote && (
+                  <p className="text-green-400 text-sm">
+                    선택지 {stageChoiceCount}개 - 투표 생성 가능
+                  </p>
+                )}
+              </div>
+            )}
+            {isCheckingStage && (
+              <p className="mt-2 text-gray-500 text-sm">스테이지 확인 중...</p>
+            )}
           </div>
 
           {/* Voting duration */}
           <div>
             <label className="block text-gray-400 text-sm mb-2">{t("voting.createModal.duration")}</label>
-            <div className="flex gap-2">
-              {[
-                { label: `1${t("voting.createModal.hour")}`, value: 60 },
-                { label: `6${t("voting.createModal.hour")}`, value: 360 },
-                { label: `1${t("voting.createModal.day")}`, value: 1440 },
-                { label: `3${t("voting.createModal.day")}`, value: 4320 },
-                { label: `7${t("voting.createModal.day")}`, value: 10080 },
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => setDurationMinutes(option.value)}
-                  disabled={isLoading}
-                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
-                    durationMinutes === option.value
-                      ? "bg-purple-600 text-white"
-                      : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-                  } disabled:opacity-50`}
-                >
-                  {option.label}
-                </button>
-              ))}
+
+            {/* Mode selector */}
+            <div className="flex gap-2 mb-3">
+              <button
+                onClick={() => setDurationMode("preset")}
+                disabled={isLoading}
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  durationMode === "preset"
+                    ? "bg-purple-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                } disabled:opacity-50`}
+              >
+                프리셋
+              </button>
+              <button
+                onClick={() => setDurationMode("custom")}
+                disabled={isLoading}
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  durationMode === "custom"
+                    ? "bg-purple-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                } disabled:opacity-50`}
+              >
+                직접 입력
+              </button>
             </div>
+
+            {durationMode === "preset" ? (
+              <div className="flex gap-2">
+                {[
+                  { label: `1${t("voting.createModal.hour")}`, value: 60 },
+                  { label: `6${t("voting.createModal.hour")}`, value: 360 },
+                  { label: `1${t("voting.createModal.day")}`, value: 1440 },
+                  { label: `3${t("voting.createModal.day")}`, value: 4320 },
+                  { label: `7${t("voting.createModal.day")}`, value: 10080 },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => setDurationMinutes(option.value)}
+                    disabled={isLoading}
+                    className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+                      durationMinutes === option.value
+                        ? "bg-purple-600 text-white"
+                        : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                    } disabled:opacity-50`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="block text-gray-500 text-xs mb-1">일</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="30"
+                      value={customDays}
+                      onChange={(e) => {
+                        setCustomDays(Math.max(0, parseInt(e.target.value) || 0));
+                        setDurationMinutes(getCustomTotalMinutes());
+                      }}
+                      onBlur={() => setDurationMinutes(getCustomTotalMinutes())}
+                      disabled={isLoading}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-center focus:outline-none focus:border-purple-500 disabled:opacity-50"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-gray-500 text-xs mb-1">시간</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="23"
+                      value={customHours}
+                      onChange={(e) => {
+                        setCustomHours(Math.max(0, Math.min(23, parseInt(e.target.value) || 0)));
+                        setDurationMinutes(getCustomTotalMinutes());
+                      }}
+                      onBlur={() => setDurationMinutes(getCustomTotalMinutes())}
+                      disabled={isLoading}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-center focus:outline-none focus:border-purple-500 disabled:opacity-50"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-gray-500 text-xs mb-1">분</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="59"
+                      value={customMinutes}
+                      onChange={(e) => {
+                        setCustomMinutes(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)));
+                        setDurationMinutes(getCustomTotalMinutes());
+                      }}
+                      onBlur={() => setDurationMinutes(getCustomTotalMinutes())}
+                      disabled={isLoading}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-center focus:outline-none focus:border-purple-500 disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+                <div className="text-center text-gray-400 text-sm">
+                  총 기간: {customDays > 0 && `${customDays}일 `}{customHours > 0 && `${customHours}시간 `}{customMinutes > 0 && `${customMinutes}분`}
+                  {customDays === 0 && customHours === 0 && customMinutes === 0 && "0분"}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Loading status */}
@@ -246,7 +414,7 @@ export const CreateVotingModal: React.FC<CreateVotingModalProps> = ({
           {/* Create button */}
           <button
             onClick={handleSubmit}
-            disabled={isLoading || !title || !selectedStage}
+            disabled={isLoading || !title || !selectedStage || isCheckingStage || stageChoiceCount < 2 || stageHasOngoingVote}
             className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-xl transition mt-4"
           >
             {isLoading ? loadingStep || "생성 중..." : t("voting.createModal.title")}
